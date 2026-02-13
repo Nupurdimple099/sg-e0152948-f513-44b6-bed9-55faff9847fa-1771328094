@@ -1,280 +1,253 @@
+import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, BookOpen, PenTool, Headphones, Mic, Calendar, Clock, Target, Trash2, AlertCircle, TrendingUp, Award } from "lucide-react";
-import { useState, useEffect } from "react";
-import { AuthModal } from "@/components/AuthModal";
-import { UserMenu } from "@/components/UserMenu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
+import { AuthModal } from "@/components/AuthModal";
 import { 
-  getPracticeHistory, 
-  getPracticeStats, 
+  ArrowLeft, 
+  Calendar, 
+  Clock, 
+  FileText, 
+  Headphones, 
+  MessageSquare, 
+  PenTool,
+  TrendingUp,
+  Filter,
+  Search,
+  Eye,
+  Download,
+  Trash2,
+  Info,
+  BarChart3,
+  CheckCircle,
+  XCircle
+} from "lucide-react";
+import type { User } from "@supabase/supabase-js";
+import type { PracticeAttempt } from "@/services/practiceHistoryService";
+import { 
+  getUserPracticeHistory, 
   deletePracticeAttempt,
-  clearModuleHistory 
+  getPracticeStats 
 } from "@/services/practiceHistoryService";
 
-interface PracticeAttempt {
-  id: string;
-  module_type: "reading" | "writing" | "listening" | "speaking";
-  test_type?: string;
-  topic: string;
-  difficulty: string;
-  completed_at: string;
-  duration?: string;
-  word_count?: number;
-  band_score?: number;
-  is_evaluated?: boolean;
+type ModuleFilter = "all" | "reading" | "writing" | "listening" | "speaking";
+type SortOption = "recent" | "oldest" | "score-high" | "score-low";
+
+interface PracticeStats {
+  totalAttempts: number;
+  byModule: {
+    reading: number;
+    writing: number;
+    listening: number;
+    speaking: number;
+  };
+  averageScores: {
+    reading: number;
+    listening: number;
+  };
+  recentActivity: number;
 }
 
+const moduleIcons = {
+  reading: FileText,
+  writing: PenTool,
+  listening: Headphones,
+  speaking: MessageSquare,
+};
+
+const moduleColors = {
+  reading: "bg-blue-500",
+  writing: "bg-purple-500",
+  listening: "bg-green-500",
+  speaking: "bg-orange-500",
+};
+
+const difficultyColors = {
+  "5.5": "bg-gray-500",
+  "6.0": "bg-blue-500",
+  "6.5": "bg-cyan-500",
+  "7.0": "bg-green-500",
+  "7.5": "bg-yellow-500",
+  "8.0": "bg-red-500",
+};
+
 export default function History() {
-  const [history, setHistory] = useState<PracticeAttempt[]>([]);
-  const [stats, setStats] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [attempts, setAttempts] = useState<PracticeAttempt[]>([]);
+  const [filteredAttempts, setFilteredAttempts] = useState<PracticeAttempt[]>([]);
+  const [stats, setStats] = useState<PracticeStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [moduleFilter, setModuleFilter] = useState<ModuleFilter>("all");
+  const [sortOption, setSortOption] = useState<SortOption>("recent");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedAttempt, setSelectedAttempt] = useState<PracticeAttempt | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
-    checkUserAndLoadHistory();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadHistory();
-      } else {
-        setHistory([]);
-        setStats(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    checkUser();
   }, []);
 
-  const checkUserAndLoadHistory = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-    
+  useEffect(() => {
     if (user) {
-      await loadHistory();
+      loadHistory();
+      loadStats();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    filterAndSortAttempts();
+  }, [attempts, moduleFilter, sortOption, searchQuery]);
+
+  const checkUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setIsAuthModalOpen(true);
+      setLoading(false);
     } else {
-      setIsLoading(false);
+      setUser(user);
     }
   };
 
   const loadHistory = async () => {
-    setIsLoading(true);
+    if (!user) return;
+    
+    setLoading(true);
     try {
-      const [historyData, statsData] = await Promise.all([
-        getPracticeHistory(),
-        getPracticeStats()
-      ]);
-      setHistory(historyData as PracticeAttempt[]);
-      setStats(statsData);
+      const history = await getUserPracticeHistory(user.id);
+      setAttempts(history);
     } catch (error) {
       console.error("Error loading history:", error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this practice attempt?")) {
-      try {
-        await deletePracticeAttempt(id);
-        await loadHistory();
-      } catch (error) {
-        console.error("Error deleting attempt:", error);
-      }
+  const loadStats = async () => {
+    if (!user) return;
+    
+    try {
+      const statistics = await getPracticeStats(user.id);
+      setStats(statistics);
+    } catch (error) {
+      console.error("Error loading stats:", error);
     }
   };
 
-  const handleClearModule = async (moduleType: string) => {
-    if (confirm(`Are you sure you want to clear all ${moduleType} practice history?`)) {
-      try {
-        await clearModuleHistory(moduleType);
-        await loadHistory();
-      } catch (error) {
-        console.error("Error clearing history:", error);
-      }
+  const filterAndSortAttempts = () => {
+    let filtered = [...attempts];
+
+    if (moduleFilter !== "all") {
+      filtered = filtered.filter(a => a.module_type === moduleFilter);
     }
-  };
 
-  const handleAuthSuccess = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-    if (user) {
-      await loadHistory();
-    }
-  };
-
-  const getModuleIcon = (module: string) => {
-    switch (module) {
-      case "reading": return <BookOpen className="h-5 w-5" />;
-      case "writing": return <PenTool className="h-5 w-5" />;
-      case "listening": return <Headphones className="h-5 w-5" />;
-      case "speaking": return <Mic className="h-5 w-5" />;
-      default: return null;
-    }
-  };
-
-  const getModuleColor = (module: string) => {
-    switch (module) {
-      case "reading": return "bg-blue-100 text-blue-700 border-blue-200";
-      case "writing": return "bg-purple-100 text-purple-700 border-purple-200";
-      case "listening": return "bg-green-100 text-green-700 border-green-200";
-      case "speaking": return "bg-orange-100 text-orange-700 border-orange-200";
-      default: return "bg-gray-100 text-gray-700 border-gray-200";
-    }
-  };
-
-  const filterByModule = (moduleType: string) => {
-    return history.filter(item => item.module_type === moduleType);
-  };
-
-  const renderAttempts = (attempts: PracticeAttempt[], moduleType: string) => {
-    if (attempts.length === 0) {
-      return (
-        <div className="text-center py-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-            {getModuleIcon(moduleType)}
-          </div>
-          <p className="text-gray-600 mb-4">No {moduleType} practice history yet</p>
-          <Link href={`/practice/${moduleType}`}>
-            <Button>Start Practicing</Button>
-          </Link>
-        </div>
+    if (searchQuery) {
+      filtered = filtered.filter(a => 
+        a.topic?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.test_type?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    return (
-      <div className="space-y-4">
-        <div className="flex justify-end">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => handleClearModule(moduleType)}
-            className="text-red-600 hover:text-red-700"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Clear All
-          </Button>
-        </div>
-        {attempts.map((attempt) => (
-          <Card key={attempt.id} className="p-4 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge className={getModuleColor(attempt.module_type)}>
-                    {getModuleIcon(attempt.module_type)}
-                    <span className="ml-1 capitalize">{attempt.module_type}</span>
-                  </Badge>
-                  {attempt.test_type && (
-                    <Badge variant="outline" className="capitalize">
-                      {attempt.test_type}
-                    </Badge>
-                  )}
-                  {attempt.is_evaluated && (
-                    <Badge className="bg-green-100 text-green-700 border-green-200">
-                      Evaluated
-                    </Badge>
-                  )}
-                </div>
-                <h3 className="font-semibold text-lg mb-2">{attempt.topic}</h3>
-                <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <Target className="h-4 w-4" />
-                    <span className="capitalize">{attempt.difficulty}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-4 w-4" />
-                    <span>{new Date(attempt.completed_at).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    <span>{new Date(attempt.completed_at).toLocaleTimeString()}</span>
-                  </div>
-                  {attempt.duration && (
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      <span>{attempt.duration}</span>
-                    </div>
-                  )}
-                  {attempt.word_count && (
-                    <div className="flex items-center gap-1">
-                      <span className="font-medium">{attempt.word_count} words</span>
-                    </div>
-                  )}
-                  {attempt.band_score && (
-                    <div className="flex items-center gap-1">
-                      <Award className="h-4 w-4 text-yellow-600" />
-                      <span className="font-semibold text-yellow-600">Band {attempt.band_score}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleDelete(attempt.id)}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </Card>
-        ))}
-      </div>
-    );
+    filtered.sort((a, b) => {
+      switch (sortOption) {
+        case "recent":
+          return new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime();
+        case "oldest":
+          return new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime();
+        case "score-high":
+          return (b.score || 0) - (a.score || 0);
+        case "score-low":
+          return (a.score || 0) - (b.score || 0);
+        default:
+          return 0;
+      }
+    });
+
+    setFilteredAttempts(filtered);
   };
 
-  if (!user) {
+  const handleViewDetails = (attempt: PracticeAttempt) => {
+    setSelectedAttempt(attempt);
+    setIsDetailOpen(true);
+  };
+
+  const handleDelete = async (attemptId: string) => {
+    if (!confirm("Are you sure you want to delete this practice attempt?")) {
+      return;
+    }
+
+    setDeleteLoading(true);
+    try {
+      await deletePracticeAttempt(attemptId);
+      await loadHistory();
+      await loadStats();
+      setIsDetailOpen(false);
+    } catch (error) {
+      console.error("Error deleting attempt:", error);
+      alert("Failed to delete attempt. Please try again.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date);
+  };
+
+  const getModuleIcon = (module: string) => {
+    const Icon = moduleIcons[module as keyof typeof moduleIcons];
+    return Icon ? <Icon className="w-4 h-4" /> : <FileText className="w-4 h-4" />;
+  };
+
+  const getModuleColor = (module: string) => {
+    return moduleColors[module as keyof typeof moduleColors] || "bg-gray-500";
+  };
+
+  const getDifficultyColor = (difficulty: string) => {
+    return difficultyColors[difficulty as keyof typeof difficultyColors] || "bg-gray-500";
+  };
+
+  const exportToPDF = () => {
+    alert("PDF export feature coming soon!");
+  };
+
+  if (loading) {
     return (
       <>
-        <SEO 
-          title="Practice History - IELTS Practice Platform"
-          description="View your IELTS practice history and track your progress"
-        />
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-          <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-            <div className="container mx-auto px-4 py-4">
-              <div className="flex items-center justify-between">
-                <Link href="/">
-                  <Button variant="ghost" size="sm">
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Home
-                  </Button>
-                </Link>
-                <Button onClick={() => setIsAuthModalOpen(true)} size="sm">
-                  Sign In
-                </Button>
-              </div>
+        <SEO title="Practice History - IELTS Practice" description="View your IELTS practice history" />
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+          <div className="container mx-auto px-4 py-8 max-w-7xl">
+            <div className="flex items-center gap-4 mb-8">
+              <Skeleton className="h-10 w-10 rounded" />
+              <Skeleton className="h-8 w-48" />
             </div>
-          </header>
-
-          <div className="container mx-auto px-4 py-12">
-            <Card className="max-w-2xl mx-auto p-8 text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
-                <AlertCircle className="h-8 w-8 text-blue-600" />
-              </div>
-              <h2 className="text-2xl font-bold mb-2">Sign In Required</h2>
-              <p className="text-gray-600 mb-6">
-                Create an account or sign in to view your practice history and track your progress across devices.
-              </p>
-              <Button onClick={() => setIsAuthModalOpen(true)} size="lg">
-                Sign In / Create Account
-              </Button>
-            </Card>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              {[1, 2, 3, 4].map(i => (
+                <Skeleton key={i} className="h-32 rounded-lg" />
+              ))}
+            </div>
+            <div className="space-y-4">
+              {[1, 2, 3].map(i => (
+                <Skeleton key={i} className="h-40 rounded-lg" />
+              ))}
+            </div>
           </div>
-
-          <AuthModal 
-            isOpen={isAuthModalOpen}
-            onClose={() => setIsAuthModalOpen(false)}
-            onSuccess={handleAuthSuccess}
-          />
         </div>
       </>
     );
@@ -283,209 +256,385 @@ export default function History() {
   return (
     <>
       <SEO 
-        title="Practice History - IELTS Practice Platform"
-        description="View your IELTS practice history and track your progress"
+        title="Practice History - IELTS Practice" 
+        description="View and track your IELTS practice attempts with detailed statistics and progress insights"
       />
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
+      
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-4">
               <Link href="/">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Home
+                <Button variant="ghost" size="icon">
+                  <ArrowLeft className="w-5 h-5" />
                 </Button>
               </Link>
-              <UserMenu onSignOut={() => setUser(null)} />
+              <div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Practice History
+                </h1>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Track your progress and review past attempts
+                </p>
+              </div>
             </div>
-          </div>
-        </header>
-
-        <div className="container mx-auto px-4 py-8">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Practice History
-            </h1>
-            <p className="text-gray-600">Track your IELTS preparation progress</p>
+            <Button onClick={exportToPDF} variant="outline" className="gap-2">
+              <Download className="w-4 h-4" />
+              Export PDF
+            </Button>
           </div>
 
-          {isLoading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading your history...</p>
+          {/* Statistics Cards */}
+          {stats && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>Total Attempts</CardDescription>
+                  <CardTitle className="text-3xl">{stats.totalAttempts}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <TrendingUp className="w-4 h-4 text-green-500" />
+                    <span>{stats.recentActivity} this week</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>Reading Average</CardDescription>
+                  <CardTitle className="text-3xl">
+                    {stats.averageScores.reading > 0 ? `${stats.averageScores.reading}/40` : "N/A"}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <FileText className="w-4 h-4 text-blue-500" />
+                    <span>{stats.byModule.reading} attempts</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>Listening Average</CardDescription>
+                  <CardTitle className="text-3xl">
+                    {stats.averageScores.listening > 0 ? `${stats.averageScores.listening}/40` : "N/A"}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <Headphones className="w-4 h-4 text-green-500" />
+                    <span>{stats.byModule.listening} attempts</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>Writing & Speaking</CardDescription>
+                  <CardTitle className="text-3xl">
+                    {stats.byModule.writing + stats.byModule.speaking}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-1 text-sm text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center gap-2">
+                      <PenTool className="w-3 h-3 text-purple-500" />
+                      <span>{stats.byModule.writing} writing</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-3 h-3 text-orange-500" />
+                      <span>{stats.byModule.speaking} speaking</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          ) : (
-            <>
-              {stats && (
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-                  <Card className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Total</span>
-                      <TrendingUp className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <p className="text-2xl font-bold">{stats.total}</p>
-                  </Card>
-                  <Card className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-blue-600">Reading</span>
-                      <BookOpen className="h-4 w-4 text-blue-400" />
-                    </div>
-                    <p className="text-2xl font-bold text-blue-600">{stats.reading}</p>
-                  </Card>
-                  <Card className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-purple-600">Writing</span>
-                      <PenTool className="h-4 w-4 text-purple-400" />
-                    </div>
-                    <p className="text-2xl font-bold text-purple-600">{stats.writing}</p>
-                  </Card>
-                  <Card className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-green-600">Listening</span>
-                      <Headphones className="h-4 w-4 text-green-400" />
-                    </div>
-                    <p className="text-2xl font-bold text-green-600">{stats.listening}</p>
-                  </Card>
-                  <Card className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-orange-600">Speaking</span>
-                      <Mic className="h-4 w-4 text-orange-400" />
-                    </div>
-                    <p className="text-2xl font-bold text-orange-600">{stats.speaking}</p>
-                  </Card>
+          )}
+
+          {/* Filters and Search */}
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    Module
+                  </label>
+                  <Select value={moduleFilter} onValueChange={(v) => setModuleFilter(v as ModuleFilter)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Modules</SelectItem>
+                      <SelectItem value="reading">Reading</SelectItem>
+                      <SelectItem value="writing">Writing</SelectItem>
+                      <SelectItem value="listening">Listening</SelectItem>
+                      <SelectItem value="speaking">Speaking</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
 
-              {stats && stats.averageBandScore > 0 && (
-                <Alert className="mb-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
-                  <Award className="h-4 w-4 text-yellow-600" />
-                  <AlertDescription className="text-yellow-800">
-                    <span className="font-semibold">Average Band Score: {stats.averageBandScore}</span>
-                    {stats.averageBandScore >= 7 && " - Excellent progress! Keep it up!"}
-                    {stats.averageBandScore >= 6 && stats.averageBandScore < 7 && " - Good work! You're on track."}
-                    {stats.averageBandScore < 6 && " - Keep practicing to improve your score."}
-                  </AlertDescription>
-                </Alert>
-              )}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4" />
+                    Sort By
+                  </label>
+                  <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="recent">Most Recent</SelectItem>
+                      <SelectItem value="oldest">Oldest First</SelectItem>
+                      <SelectItem value="score-high">Highest Score</SelectItem>
+                      <SelectItem value="score-low">Lowest Score</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <Card className="p-6">
-                <Tabs defaultValue="all" className="w-full">
-                  <TabsList className="grid w-full grid-cols-5 mb-6">
-                    <TabsTrigger value="all">All</TabsTrigger>
-                    <TabsTrigger value="reading">Reading</TabsTrigger>
-                    <TabsTrigger value="writing">Writing</TabsTrigger>
-                    <TabsTrigger value="listening">Listening</TabsTrigger>
-                    <TabsTrigger value="speaking">Speaking</TabsTrigger>
-                  </TabsList>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Search className="w-4 h-4" />
+                    Search
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Search by topic..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-                  <TabsContent value="all">
-                    {history.length === 0 ? (
-                      <div className="text-center py-12">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-                          <AlertCircle className="h-8 w-8 text-gray-400" />
+          {/* Attempts List */}
+          {filteredAttempts.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Info className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Practice Attempts Found</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                  {searchQuery || moduleFilter !== "all" 
+                    ? "Try adjusting your filters or search query"
+                    : "Start practicing to see your history here"}
+                </p>
+                <Link href="/">
+                  <Button>Start Practicing</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {filteredAttempts.map((attempt) => (
+                <Card key={attempt.id} className="hover:shadow-lg transition-shadow">
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-start gap-4 flex-1">
+                        <div className={`p-3 rounded-lg ${getModuleColor(attempt.module_type)}`}>
+                          {getModuleIcon(attempt.module_type)}
+                          <span className="sr-only">{attempt.module_type}</span>
                         </div>
-                        <p className="text-gray-600 mb-4">No practice history yet</p>
-                        <Link href="/">
-                          <Button>Start Practicing</Button>
-                        </Link>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {history.map((attempt) => (
-                          <Card key={attempt.id} className="p-4 hover:shadow-md transition-shadow">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Badge className={getModuleColor(attempt.module_type)}>
-                                    {getModuleIcon(attempt.module_type)}
-                                    <span className="ml-1 capitalize">{attempt.module_type}</span>
-                                  </Badge>
-                                  {attempt.test_type && (
-                                    <Badge variant="outline" className="capitalize">
-                                      {attempt.test_type}
-                                    </Badge>
-                                  )}
-                                  {attempt.is_evaluated && (
-                                    <Badge className="bg-green-100 text-green-700 border-green-200">
-                                      Evaluated
-                                    </Badge>
-                                  )}
-                                </div>
-                                <h3 className="font-semibold text-lg mb-2">{attempt.topic}</h3>
-                                <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                                  <div className="flex items-center gap-1">
-                                    <Target className="h-4 w-4" />
-                                    <span className="capitalize">{attempt.difficulty}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <Calendar className="h-4 w-4" />
-                                    <span>{new Date(attempt.completed_at).toLocaleDateString()}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <Clock className="h-4 w-4" />
-                                    <span>{new Date(attempt.completed_at).toLocaleTimeString()}</span>
-                                  </div>
-                                  {attempt.duration && (
-                                    <div className="flex items-center gap-1">
-                                      <Clock className="h-4 w-4" />
-                                      <span>{attempt.duration}</span>
-                                    </div>
-                                  )}
-                                  {attempt.word_count && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="font-medium">{attempt.word_count} words</span>
-                                    </div>
-                                  )}
-                                  {attempt.band_score && (
-                                    <div className="flex items-center gap-1">
-                                      <Award className="h-4 w-4 text-yellow-600" />
-                                      <span className="font-semibold text-yellow-600">Band {attempt.band_score}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(attempt.id)}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="font-semibold text-lg truncate">
+                              {attempt.topic || "Untitled Practice"}
+                            </h3>
+                            <Badge variant="outline" className="capitalize">
+                              {attempt.module_type}
+                            </Badge>
+                            {attempt.test_type && (
+                              <Badge variant="secondary" className="capitalize">
+                                {attempt.test_type}
+                              </Badge>
+                            )}
+                            {attempt.difficulty && (
+                              <Badge className={getDifficultyColor(attempt.difficulty)}>
+                                Band {attempt.difficulty}
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-4 h-4" />
+                              <span>{formatDate(attempt.completed_at)}</span>
                             </div>
-                          </Card>
-                        ))}
+                            
+                            {attempt.score !== null && (
+                              <div className="flex items-center gap-1">
+                                <CheckCircle className="w-4 h-4 text-green-500" />
+                                <span>Score: {attempt.score}/40</span>
+                              </div>
+                            )}
+                            
+                            {attempt.word_count && (
+                              <div className="flex items-center gap-1">
+                                <FileText className="w-4 h-4" />
+                                <span>{attempt.word_count} words</span>
+                              </div>
+                            )}
+                            
+                            {attempt.time_taken && (
+                              <div className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                <span>{Math.round(attempt.time_taken / 60)} min</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={() => handleViewDetails(attempt)}
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                        >
+                          <Eye className="w-4 h-4" />
+                          View Details
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Detail Modal */}
+          <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              {selectedAttempt && (
+                <>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <div className={`p-2 rounded ${getModuleColor(selectedAttempt.module_type)}`}>
+                        {getModuleIcon(selectedAttempt.module_type)}
+                      </div>
+                      {selectedAttempt.topic || "Practice Attempt"}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {formatDate(selectedAttempt.completed_at)}
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-6 mt-4">
+                    {/* Metadata */}
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline" className="capitalize">
+                        {selectedAttempt.module_type}
+                      </Badge>
+                      {selectedAttempt.test_type && (
+                        <Badge variant="secondary" className="capitalize">
+                          {selectedAttempt.test_type}
+                        </Badge>
+                      )}
+                      {selectedAttempt.difficulty && (
+                        <Badge className={getDifficultyColor(selectedAttempt.difficulty)}>
+                          Band {selectedAttempt.difficulty}
+                        </Badge>
+                      )}
+                      {selectedAttempt.score !== null && (
+                        <Badge variant="default">
+                          Score: {selectedAttempt.score}/40
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* User Answer */}
+                    {selectedAttempt.user_answer && (
+                      <div>
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <FileText className="w-4 h-4" />
+                          Your Answer
+                          {selectedAttempt.word_count && (
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              ({selectedAttempt.word_count} words)
+                            </span>
+                          )}
+                        </h4>
+                        <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg whitespace-pre-wrap text-sm">
+                          {selectedAttempt.user_answer}
+                        </div>
                       </div>
                     )}
-                  </TabsContent>
 
-                  <TabsContent value="reading">
-                    {renderAttempts(filterByModule("reading"), "reading")}
-                  </TabsContent>
+                    {/* User Responses (for Reading/Listening) */}
+                    {selectedAttempt.user_responses && (
+                      <div>
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4" />
+                          Your Responses
+                        </h4>
+                        <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {Object.entries(selectedAttempt.user_responses).map(([key, value]) => (
+                              <div key={key} className="flex items-center gap-2 text-sm">
+                                <span className="font-medium">{key}:</span>
+                                <span className="text-gray-600 dark:text-gray-400">{value as string}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                  <TabsContent value="writing">
-                    {renderAttempts(filterByModule("writing"), "writing")}
-                  </TabsContent>
+                    {/* Test Data */}
+                    {selectedAttempt.test_data && (
+                      <div>
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <Info className="w-4 h-4" />
+                          Test Details
+                        </h4>
+                        <Alert>
+                          <AlertDescription className="text-sm">
+                            <pre className="whitespace-pre-wrap overflow-x-auto">
+                              {JSON.stringify(selectedAttempt.test_data, null, 2)}
+                            </pre>
+                          </AlertDescription>
+                        </Alert>
+                      </div>
+                    )}
 
-                  <TabsContent value="listening">
-                    {renderAttempts(filterByModule("listening"), "listening")}
-                  </TabsContent>
-
-                  <TabsContent value="speaking">
-                    {renderAttempts(filterByModule("speaking"), "speaking")}
-                  </TabsContent>
-                </Tabs>
-              </Card>
-            </>
-          )}
+                    {/* Actions */}
+                    <div className="flex justify-between pt-4 border-t">
+                      <Button
+                        onClick={() => handleDelete(selectedAttempt.id)}
+                        variant="destructive"
+                        size="sm"
+                        disabled={deleteLoading}
+                        className="gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {deleteLoading ? "Deleting..." : "Delete Attempt"}
+                      </Button>
+                      <Button onClick={() => setIsDetailOpen(false)} variant="outline">
+                        Close
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
-
-        <AuthModal 
-          isOpen={isAuthModalOpen}
-          onClose={() => setIsAuthModalOpen(false)}
-          onSuccess={handleAuthSuccess}
-        />
       </div>
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={() => {
+          setIsAuthModalOpen(false);
+          checkUser();
+        }}
+      />
     </>
   );
 }
