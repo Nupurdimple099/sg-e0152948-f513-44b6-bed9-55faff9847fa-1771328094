@@ -15,6 +15,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      ielts_papers: {
+        Row: {
+          audio_url: string | null
+          category: string
+          content_json: Json
+          created_at: string | null
+          difficulty: string
+          exam_type: string
+          test_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          audio_url?: string | null
+          category: string
+          content_json: Json
+          created_at?: string | null
+          difficulty: string
+          exam_type: string
+          test_id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          audio_url?: string | null
+          category?: string
+          content_json?: Json
+          created_at?: string | null
+          difficulty?: string
+          exam_type?: string
+          test_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       listening_tests: {
         Row: {
           audio_url: string
