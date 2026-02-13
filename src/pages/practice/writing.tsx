@@ -63,6 +63,10 @@ ChartJS.register(
   Legend
 );
 
+import { UserMenu } from "@/components/UserMenu";
+import { supabase } from "@/integrations/supabase/client";
+import { savePracticeAttempt } from "@/services/practiceHistoryService";
+
 interface Task1Data {
   type: 'line' | 'bar' | 'pie' | 'table' | 'process' | 'map';
   title: string;

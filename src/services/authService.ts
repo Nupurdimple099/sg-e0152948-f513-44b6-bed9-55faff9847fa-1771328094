@@ -179,3 +179,46 @@ export const authService = {
     return supabase.auth.onAuthStateChange(callback);
   }
 };
+
+/**
+ * Request password reset email
+ */
+export async function requestPasswordReset(email: string) {
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${getURL()}reset-password`,
+    });
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    console.error("Password reset request error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update password with reset token
+ */
+export async function updatePassword(newPassword: string) {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    console.error("Password update error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Check if user is in password recovery mode
+ */
+export async function isPasswordRecovery() {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user?.app_metadata?.provider === "email" && 
+         window.location.hash.includes("type=recovery");
+}
