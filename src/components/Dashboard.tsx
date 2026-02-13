@@ -204,45 +204,54 @@ export function Dashboard({ userId }: DashboardProps) {
       {/* Study Streak and Latest Score */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Study Streak Card */}
-        <Card className="border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-red-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-orange-700">
-              <Flame className="w-5 h-5" />
-              Study Streak
+        <Card className="border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-red-50 px-4 sm:px-6">
+          <CardHeader className="px-0">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600 dark:text-orange-400" />
+              <span className="text-sm sm:text-base">Study Streak</span>
             </CardTitle>
-            <CardDescription>Keep the momentum going!</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-bold text-orange-600">{studyStreak}</span>
-              <span className="text-2xl text-orange-500">{studyStreak === 1 ? "day" : "days"}</span>
+          <CardContent className="px-0">
+            <div className="text-center">
+              <p className="text-4xl sm:text-5xl md:text-6xl font-bold text-orange-600 dark:text-orange-400 mb-2">
+                {studyStreak}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                {studyStreak === 1 ? "day" : "days"} in a row
+              </p>
+              {studyStreak >= 7 && (
+                <p className="text-xs sm:text-sm font-semibold text-orange-600 dark:text-orange-400 mt-2">
+                  🔥 Amazing! You&apos;re on fire!
+                </p>
+              )}
+              {studyStreak >= 3 && studyStreak < 7 && (
+                <p className="text-xs sm:text-sm font-semibold text-orange-600 dark:text-orange-400 mt-2">
+                  💪 Great consistency!
+                </p>
+              )}
+              {studyStreak > 0 && studyStreak < 3 && (
+                <p className="text-xs sm:text-sm font-semibold text-orange-600 dark:text-orange-400 mt-2">
+                  👍 Keep it up!
+                </p>
+              )}
+              {studyStreak === 0 && (
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-2">
+                  Start practicing today!
+                </p>
+              )}
             </div>
-            {studyStreak > 0 ? (
-              <p className="mt-4 text-sm text-gray-600">
-                {studyStreak >= 7 
-                  ? "🔥 Amazing! You're on fire!" 
-                  : studyStreak >= 3 
-                    ? "💪 Great consistency!" 
-                    : "👍 Keep it up!"}
-              </p>
-            ) : (
-              <p className="mt-4 text-sm text-gray-600">
-                Start practicing today to begin your streak!
-              </p>
-            )}
           </CardContent>
         </Card>
 
         {/* Latest Band Score */}
-        <Card className="border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-indigo-700">
-              <Award className="w-5 h-5" />
-              Latest Band Score
+        <Card className="border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50 px-4 sm:px-6">
+          <CardHeader className="px-0">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Award className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600 dark:text-indigo-400" />
+              <span className="text-sm sm:text-base">Latest Band Score</span>
             </CardTitle>
-            <CardDescription>Your most recent evaluation</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-0">
             {bandScoreData.length > 0 ? (
               <>
                 <div className="flex items-baseline gap-2">
@@ -271,17 +280,17 @@ export function Dashboard({ userId }: DashboardProps) {
       </div>
 
       {/* Band Score Progress Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Band Score Progress
+      <Card className="md:col-span-2 lg:col-span-3 px-4 sm:px-6">
+        <CardHeader className="px-0">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
+            <span className="text-sm sm:text-base">Band Score Progress</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs sm:text-sm">
             Track your improvement over time
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-0">
           {bandScoreData.length > 0 ? (
             <div className="h-[300px]">
               <Line data={chartData} options={chartOptions} />
@@ -301,15 +310,17 @@ export function Dashboard({ userId }: DashboardProps) {
       </Card>
 
       {/* Recent Practice Activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
-            Recent Practice Activity
+      <Card className="md:col-span-2 lg:col-span-3 px-4 sm:px-6">
+        <CardHeader className="px-0">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400" />
+            <span className="text-sm sm:text-base">Recent Activity</span>
           </CardTitle>
-          <CardDescription>Your last 5 practice sessions</CardDescription>
+          <CardDescription className="text-xs sm:text-sm">
+            Your latest practice sessions
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-0">
           {recentPractice.length > 0 ? (
             <div className="space-y-3">
               {recentPractice.map((practice) => (

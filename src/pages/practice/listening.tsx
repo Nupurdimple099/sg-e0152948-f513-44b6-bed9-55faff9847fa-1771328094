@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { SEO } from "@/components/SEO";
 import Link from "next/link";
-import { ArrowLeft, Play, Pause, Volume2, FileText, CheckCircle, XCircle, Award, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Play, Pause, Volume2, FileText, CheckCircle, XCircle, Award, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -38,8 +38,36 @@ export default function ListeningPractice() {
     bandScore: number;
   } | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [audioError, setAudioError] = useState(false);
   
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Check if audio URL is missing or invalid
+  const hasValidAudio = selectedTest?.audio_url && selectedTest.audio_url.trim() !== "" && !selectedTest.audio_url.includes("placeholder");
+
+  // Sample transcript for when audio is missing
+  const SAMPLE_TRANSCRIPT = `Welcome to this IELTS Listening practice test. This is a sample transcript that demonstrates how the interface works.
+
+Section 1: You will hear a conversation between a student and a university administrator about accommodation options.
+
+Administrator: Good morning! How can I help you today?
+Student: Hi, I'm looking for information about student accommodation for next semester.
+Administrator: Certainly! We have several options available. Are you interested in on-campus or off-campus housing?
+Student: I think I'd prefer on-campus housing if possible.
+
+Section 2: You will hear a guide describing the features of a new science museum.
+
+Guide: Welcome everyone to the opening of our new Interactive Science Museum. The museum features four main zones: The Discovery Zone, Space Exploration, Marine Biology, and the Innovation Lab. Each zone has been designed to provide hands-on learning experiences for visitors of all ages.
+
+Section 3: You will hear a discussion between two students and their professor about a research project.
+
+Professor: So, tell me about your progress on the renewable energy project.
+Student 1: We've been focusing on solar panel efficiency in different weather conditions.
+Student 2: Yes, and we've collected data from three different locations over the past month.
+
+Section 4: You will hear a lecture about urban planning and sustainable cities.
+
+Lecturer: Today, we'll explore how modern urban planning incorporates sustainability principles. Successful sustainable cities balance economic growth, environmental protection, and social equity. Let's examine three key strategies that cities worldwide are implementing...`;
 
   // Fetch user session
   useEffect(() => {
@@ -73,31 +101,40 @@ export default function ListeningPractice() {
   // Audio player controls
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !hasValidAudio) return;
 
     const updateTime = () => setCurrentTime(audio.currentTime);
     const updateDuration = () => setDuration(audio.duration);
     const handleEnded = () => setIsPlaying(false);
+    const handleError = () => {
+      setAudioError(true);
+      setIsPlaying(false);
+    };
 
     audio.addEventListener("timeupdate", updateTime);
     audio.addEventListener("loadedmetadata", updateDuration);
     audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
 
     return () => {
       audio.removeEventListener("timeupdate", updateTime);
       audio.removeEventListener("loadedmetadata", updateDuration);
       audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
     };
-  }, [selectedTest]);
+  }, [selectedTest, hasValidAudio]);
 
   const togglePlayPause = () => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !hasValidAudio) return;
 
     if (isPlaying) {
       audio.pause();
     } else {
-      audio.play();
+      audio.play().catch(() => {
+        setAudioError(true);
+        setIsPlaying(false);
+      });
     }
     setIsPlaying(!isPlaying);
   };
@@ -225,45 +262,58 @@ export default function ListeningPractice() {
                 </Button>
               </Link>
               
-              <div className="flex-1 min-w-[200px]">
-                <div className="flex items-center gap-3">
-                  <Button
-                    onClick={togglePlayPause}
-                    size="sm"
-                    className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
-                  >
-                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  </Button>
-                  
-                  <div className="flex-1 flex items-center gap-2">
-                    <span className="text-xs text-gray-600 dark:text-gray-400 min-w-[35px]">
-                      {formatTime(currentTime)}
-                    </span>
-                    <input
-                      type="range"
-                      min="0"
-                      max={duration || 0}
-                      value={currentTime}
-                      onChange={handleSeek}
-                      className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                      style={{
-                        background: `linear-gradient(to right, rgb(99, 102, 241) 0%, rgb(99, 102, 241) ${(currentTime / duration) * 100}%, rgb(229, 231, 235) ${(currentTime / duration) * 100}%, rgb(229, 231, 235) 100%)`
-                      }}
-                    />
-                    <span className="text-xs text-gray-600 dark:text-gray-400 min-w-[35px]">
-                      {formatTime(duration)}
-                    </span>
+              {!hasValidAudio || audioError ? (
+                <Alert className="flex-1 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <AlertDescription className="text-amber-800 dark:text-amber-200">
+                    <strong>Audio content is being updated, check back soon!</strong>
+                    <br />
+                    <span className="text-sm">You can still explore the interface and see a sample transcript below.</span>
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="flex-1 min-w-[200px]">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      onClick={togglePlayPause}
+                      size="sm"
+                      className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+                    >
+                      {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    </Button>
+                    
+                    <div className="flex-1 flex items-center gap-2">
+                      <span className="text-xs text-gray-600 dark:text-gray-400 min-w-[35px]">
+                        {formatTime(currentTime)}
+                      </span>
+                      <input
+                        type="range"
+                        min="0"
+                        max={duration || 0}
+                        value={currentTime}
+                        onChange={handleSeek}
+                        className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                        style={{
+                          background: `linear-gradient(to right, rgb(99, 102, 241) 0%, rgb(99, 102, 241) ${(currentTime / duration) * 100}%, rgb(229, 231, 235) ${(currentTime / duration) * 100}%, rgb(229, 231, 235) 100%)`
+                        }}
+                      />
+                      <span className="text-xs text-gray-600 dark:text-gray-400 min-w-[35px]">
+                        {formatTime(duration)}
+                      </span>
+                    </div>
+                    
+                    <Volume2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                   </div>
-                  
-                  <Volume2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Hidden audio element */}
-        <audio ref={audioRef} src={selectedTest.audio_url} preload="metadata" />
+        {hasValidAudio && !audioError && (
+          <audio ref={audioRef} src={selectedTest.audio_url} preload="metadata" />
+        )}
 
         {/* Main Content */}
         <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -279,6 +329,12 @@ export default function ListeningPractice() {
               <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
                 {selectedTest.test_type}
               </span>
+              {(!hasValidAudio || audioError) && (
+                <span className="px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  Demo Mode
+                </span>
+              )}
             </div>
           </div>
 
@@ -292,16 +348,29 @@ export default function ListeningPractice() {
               >
                 <div className="flex items-center gap-2">
                   <FileText className="w-5 h-5" />
-                  <span className="font-semibold">View Transcript</span>
+                  <span className="font-semibold">
+                    {(!hasValidAudio || audioError) ? "View Sample Transcript" : "View Transcript"}
+                  </span>
+                  {(!hasValidAudio || audioError) && (
+                    <span className="text-xs text-amber-600 dark:text-amber-400">(Demo)</span>
+                  )}
                 </div>
                 {showTranscript ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
               </Button>
             </CardHeader>
             {showTranscript && (
               <CardContent>
+                {(!hasValidAudio || audioError) && (
+                  <Alert className="mb-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+                    <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <AlertDescription className="text-blue-800 dark:text-blue-200 text-sm">
+                      This is a sample transcript to demonstrate the interface. Actual test content will include synchronized audio.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <div className="prose dark:prose-invert max-w-none">
                   <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {selectedTest.transcript_text}
+                    {(!hasValidAudio || audioError) ? SAMPLE_TRANSCRIPT : selectedTest.transcript_text}
                   </p>
                 </div>
               </CardContent>

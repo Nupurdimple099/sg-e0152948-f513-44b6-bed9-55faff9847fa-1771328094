@@ -148,3 +148,29 @@
   --chart-4: 280 65% 60%;
   --chart-5: 340 75% 55%;
 }
+
+/* Extra small screen text scaling */
+@media (max-width: 380px) {
+  html {
+    font-size: 14px;
+  }
+  
+  /* Scale down large numbers slightly */
+  .text-4xl {
+    font-size: 2rem;
+  }
+  
+  .text-5xl {
+    font-size: 2.5rem;
+  }
+  
+  .text-6xl {
+    font-size: 3rem;
+  }
+  
+  /* Ensure minimum padding on small cards */
+  .min-padding-mobile {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
