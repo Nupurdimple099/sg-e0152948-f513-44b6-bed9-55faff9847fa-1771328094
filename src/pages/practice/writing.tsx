@@ -2,11 +2,45 @@ import { SEO } from "@/components/SEO";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { BookOpen, FileText, Target, Sparkles, Info, Maximize2, X, Download, PenTool, ArrowLeft, History, Clock, Award } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  PenTool,
+  ArrowLeft,
+  FileText,
+  Clock,
+  Award,
+  BookOpen,
+  History,
+  Sparkles,
+  Download,
+  Maximize2,
+  X,
+  CheckCircle2,
+  TrendingUp,
+  Lightbulb,
+  Target,
+  BarChart3,
+  LineChart,
+  PieChart,
+  Table as TableIcon,
+  GitBranch,
+  Map as MapIcon,
+  Shuffle,
+  Info
+} from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -44,13 +78,18 @@ interface Task1Data {
 
 export default function WritingPractice() {
   const [testType, setTestType] = useState<"academic" | "general">("academic");
-  const [taskType, setTaskType] = useState<"task1" | "task2">("task1");
+  const [taskNumber, setTaskNumber] = useState<"1" | "2">("1");
   const [topic, setTopic] = useState("");
-  const [difficulty, setDifficulty] = useState("6.5-7.0");
-  const [generatedTest, setGeneratedTest] = useState<any>(null);
+  const [difficulty, setDifficulty] = useState("6.5-7.5");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [generatedTest, setGeneratedTest] = useState<any>(null);
+  const [userAnswer, setUserAnswer] = useState("");
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluation, setEvaluation] = useState<any>(null);
+  const [showEvaluation, setShowEvaluation] = useState(false);
+  const [chartType, setChartType] = useState<string>("random");
   const chartRef = useRef<HTMLDivElement>(null);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   const topics = [
     "Urbanization and Housing",
@@ -73,16 +112,17 @@ export default function WritingPractice() {
     { value: "7.5-8.0", label: "Band 7.5-8.0 (Expert)" }
   ];
 
-  const generateTask1Data = (selectedTopic: string): Task1Data => {
-    const chartTypes: Task1Data['type'][] = ['line', 'bar', 'pie', 'table', 'process', 'map'];
-    const randomType = chartTypes[Math.floor(Math.random() * chartTypes.length)];
+  const generateTask1Data = (selectedType?: string) => {
+    const types = ["line", "bar", "pie", "table", "process", "map"];
+    const chartType = selectedType && selectedType !== "random" 
+      ? selectedType 
+      : types[Math.floor(Math.random() * types.length)];
 
-    // Generate data based on topic and chart type
-    if (randomType === 'line') {
+    if (chartType === "line") {
       return {
         type: 'line',
-        title: `Trends in ${selectedTopic} (2015-2024)`,
-        prompt: `The line graph below shows trends in ${selectedTopic.toLowerCase()} over a 10-year period from 2015 to 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.`,
+        title: `Trends in ${topic} (2015-2024)`,
+        prompt: `The line graph below shows trends in ${topic.toLowerCase()} over a 10-year period from 2015 to 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.`,
         chartData: {
           labels: ['2015', '2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024'],
           datasets: [
@@ -105,11 +145,11 @@ export default function WritingPractice() {
           ]
         }
       };
-    } else if (randomType === 'bar') {
+    } else if (chartType === 'bar') {
       return {
         type: 'bar',
-        title: `Comparison of ${selectedTopic} Across Regions`,
-        prompt: `The bar chart below compares ${selectedTopic.toLowerCase()} across different regions in 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.`,
+        title: `Comparison of ${topic} Across Regions`,
+        prompt: `The bar chart below compares ${topic.toLowerCase()} across different regions in 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.`,
         chartData: {
           labels: ['North America', 'Europe', 'Asia', 'South America', 'Africa', 'Oceania'],
           datasets: [
@@ -130,11 +170,11 @@ export default function WritingPractice() {
           ]
         }
       };
-    } else if (randomType === 'pie') {
+    } else if (chartType === 'pie') {
       return {
         type: 'pie',
-        title: `Distribution of ${selectedTopic} by Category`,
-        prompt: `The pie chart below shows the distribution of ${selectedTopic.toLowerCase()} across different categories in 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.`,
+        title: `Distribution of ${topic} by Category`,
+        prompt: `The pie chart below shows the distribution of ${topic.toLowerCase()} across different categories in 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.`,
         chartData: {
           labels: ['Category A', 'Category B', 'Category C', 'Category D', 'Category E'],
           datasets: [
@@ -159,29 +199,29 @@ export default function WritingPractice() {
           ]
         }
       };
-    } else if (randomType === 'table') {
+    } else if (chartType === 'table') {
       return {
         type: 'table',
-        title: `${selectedTopic} Statistics Table`,
-        prompt: `The table below presents data on ${selectedTopic.toLowerCase()} across three different years.\n\n| Year | Urban Areas | Rural Areas | National Average |\n|------|-------------|-------------|------------------|\n| 2020 | 72% | 45% | 58% |\n| 2022 | 78% | 52% | 65% |\n| 2024 | 85% | 58% | 72% |\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.`
+        title: `${topic} Statistics Table`,
+        prompt: `The table below presents data on ${topic.toLowerCase()} across three different years.\n\n| Year | Urban Areas | Rural Areas | National Average |\n|------|-------------|-------------|------------------|\n| 2020 | 72% | 45% | 58% |\n| 2022 | 78% | 52% | 65% |\n| 2024 | 85% | 58% | 72% |\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.`
       };
-    } else if (randomType === 'process') {
+    } else if (chartType === 'process') {
       return {
         type: 'process',
-        title: `${selectedTopic} Process Diagram`,
-        prompt: `The diagram below illustrates the process involved in ${selectedTopic.toLowerCase()}.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.\n\n[Process Stages]\n1. Initial Stage → 2. Development Phase → 3. Implementation → 4. Evaluation → 5. Final Outcome`
+        title: `${topic} Process Diagram`,
+        prompt: `The diagram below illustrates the process involved in ${topic.toLowerCase()}.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.\n\n[Process Stages]\n1. Initial Stage → 2. Development Phase → 3. Implementation → 4. Evaluation → 5. Final Outcome`
       };
     } else {
       return {
         type: 'map',
-        title: `${selectedTopic} - Location Map Comparison`,
-        prompt: `The maps below show the changes in ${selectedTopic.toLowerCase()} between 2010 and 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.\n\n[Map descriptions would typically show spatial changes, development areas, and infrastructure modifications]`
+        title: `${topic} - Location Map Comparison`,
+        prompt: `The maps below show the changes in ${topic.toLowerCase()} between 2010 and 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.\n\n[Map descriptions would typically show spatial changes, development areas, and infrastructure modifications]`
       };
     }
   };
 
   const generateTask1Academic = (level: string, selectedTopic: string) => {
-    const task1Data = generateTask1Data(selectedTopic);
+    const task1Data = generateTask1Data();
     
     return {
       taskType: "task1",
@@ -332,34 +372,69 @@ export default function WritingPractice() {
 
   const generateTest = () => {
     if (!topic) {
-      alert("Please select a topic");
+      alert("Please enter a topic");
       return;
     }
 
     setIsGenerating(true);
-    
+    setShowEvaluation(false);
+    setUserAnswer("");
+    setEvaluation(null);
+
     setTimeout(() => {
-      let test;
-      if (taskType === "task1") {
-        test = testType === "academic" 
-          ? generateTask1Academic(difficulty, topic)
-          : generateTask1General(difficulty, topic);
+      if (taskNumber === "1") {
+        const task1Data = generateTask1Data(chartType);
+        setGeneratedTest({
+          taskType: "task1",
+          testType: "academic",
+          topic: topic,
+          difficulty: difficulty,
+          chartData: task1Data,
+          prompt: task1Data.prompt,
+          requirements: [
+            "Write at least 150 words",
+            "Spend about 20 minutes on this task",
+            "Describe the main features and trends",
+            "Make relevant comparisons",
+            "Use appropriate vocabulary and grammar"
+          ],
+          modelAnswer: {
+            introduction: "Begin by paraphrasing the question and stating what the visual data shows overall.",
+            overview: "Provide 2-3 sentences summarizing the most significant trends or features without specific data.",
+            bodyParagraph1: "Describe the first main feature or trend in detail, using specific figures and making comparisons.",
+            bodyParagraph2: "Describe the second main feature or trend, again with specific data and comparisons.",
+            conclusion: "Task 1 does not require a conclusion. End with the final body paragraph.",
+            sampleOpening: `The ${task1Data.type} chart illustrates ${topic.toLowerCase()} over a specific time period. Overall, it is evident that...`,
+            examinerTip: "Focus on accuracy of data description and clear organization. Avoid giving opinions or reasons for the trends."
+          },
+          assessmentCriteria: {
+            taskAchievement: "Clear overview of main trends/features, appropriate selection of key information, accurate data description",
+            coherenceCohesion: "Logical organization, clear progression, appropriate paragraphing, effective use of cohesive devices",
+            lexicalResource: "Appropriate vocabulary for data description, accurate word choice, some flexibility and precision",
+            grammaticalRange: "Mix of simple and complex sentence structures, good control of grammar, minimal errors"
+          },
+          bandScoreGuidance: {
+            "5.0-5.5": "Basic description with some inaccuracies, limited range of vocabulary and structures",
+            "6.0-6.5": "Clear overview with relevant details, adequate vocabulary, generally good grammar with some errors",
+            "6.5-7.0": "Clear, well-organized response covering key features, good vocabulary range, mostly accurate grammar",
+            "7.0-7.5": "Detailed, accurate description with clear trends, flexible vocabulary use, wide range of structures",
+            "7.5-8.0": "Highly detailed and accurate, sophisticated vocabulary, full range of structures with rare errors"
+          }
+        });
       } else {
-        test = generateTask2(difficulty, topic);
+        setGeneratedTest(generateTask2(difficulty, topic));
       }
-      
-      setGeneratedTest(test);
       setIsGenerating(false);
 
       // Save to history
       const historyItem = {
         id: Date.now().toString(),
         module: "writing" as const,
-        type: taskType === "task1" ? "Task 1" : "Task 2",
+        type: taskNumber === "1" ? "Task 1" : "Task 2",
         topic: topic,
         difficulty: difficulty,
         completedAt: new Date().toISOString(),
-        duration: taskType === "task1" ? 20 : 40,
+        duration: taskNumber === "1" ? 20 : 40,
       };
       
       const savedHistory = localStorage.getItem("ielts_practice_history");
@@ -367,6 +442,153 @@ export default function WritingPractice() {
       history.unshift(historyItem);
       localStorage.setItem("ielts_practice_history", JSON.stringify(history));
     }, 1500);
+  };
+
+  const evaluateAnswer = () => {
+    if (!userAnswer.trim()) {
+      alert("Please write your answer before evaluation.");
+      return;
+    }
+
+    if (userAnswer.trim().split(/\s+/).filter(w => w.length > 0).length < (taskNumber === "1" ? 150 : 250)) {
+      alert("Your answer should be at least 150 words for Task 1 or 250 words for Task 2.");
+      return;
+    }
+
+    setIsEvaluating(true);
+    setShowEvaluation(false);
+
+    // Simulate AI evaluation with comprehensive feedback
+    setTimeout(() => {
+      const wordCount = userAnswer.trim().split(/\s+/).filter(w => w.length > 0).length;
+      const sentences = userAnswer.split(/[.!?]+/).filter(s => s.trim().length > 0);
+      const avgWordsPerSentence = wordCount / sentences.length;
+      
+      // Analyze vocabulary sophistication
+      const commonWords = ["the", "a", "an", "is", "are", "was", "were", "have", "has", "had", "do", "does", "did"];
+      const words = userAnswer.toLowerCase().match(/\b[a-z]+\b/g) || [];
+      const uniqueWords = new Set(words.filter(w => !commonWords.includes(w)));
+      const lexicalDiversity = (uniqueWords.size / words.length) * 100;
+      
+      // Detect sophisticated vocabulary
+      const sophisticatedWords = [
+        "furthermore", "moreover", "consequently", "nevertheless", "notwithstanding",
+        "substantial", "significant", "considerable", "demonstrate", "illustrate",
+        "infrastructure", "phenomenon", "paramount", "mitigate", "comprehensive"
+      ];
+      const usedSophisticated = words.filter(w => sophisticatedWords.includes(w));
+      
+      // Calculate estimated band scores
+      const taskScore = wordCount >= (taskNumber === "1" ? 150 : 250) ? 7.0 : 6.0;
+      const coherenceScore = avgWordsPerSentence > 15 && avgWordsPerSentence < 25 ? 7.0 : 6.5;
+      const lexicalScore = lexicalDiversity > 40 ? 7.0 : lexicalDiversity > 30 ? 6.5 : 6.0;
+      const grammarScore = sentences.length > 8 ? 7.0 : 6.5;
+      const overallScore = ((taskScore + coherenceScore + lexicalScore + grammarScore) / 4).toFixed(1);
+
+      const evaluationResult = {
+        overallBand: parseFloat(overallScore),
+        wordCount,
+        criteria: {
+          taskAchievement: {
+            score: taskScore,
+            feedback: wordCount >= (taskNumber === "1" ? 150 : 250)
+              ? "You have adequately addressed the task requirements with sufficient detail."
+              : "Your response is slightly under the recommended word count. Aim to provide more detailed examples and explanations.",
+            strengths: [
+              "Clear understanding of the task",
+              "Relevant content provided"
+            ],
+            improvements: [
+              "Add more specific examples to support your arguments",
+              "Ensure all parts of the question are fully addressed"
+            ]
+          },
+          coherenceCohesion: {
+            score: coherenceScore,
+            feedback: avgWordsPerSentence > 15 && avgWordsPerSentence < 25
+              ? "Your writing flows logically with good use of cohesive devices."
+              : "Consider varying your sentence length for better readability.",
+            strengths: [
+              "Logical progression of ideas",
+              "Appropriate paragraphing"
+            ],
+            improvements: [
+              "Use more transitional phrases (Furthermore, In addition, However)",
+              "Ensure clear topic sentences in each paragraph",
+              "Link ideas between paragraphs more explicitly"
+            ]
+          },
+          lexicalResource: {
+            score: lexicalScore,
+            feedback: lexicalDiversity > 40
+              ? "Good range of vocabulary with some sophisticated words used appropriately."
+              : "Your vocabulary is adequate but could be more varied. Try to use more synonyms and less common words.",
+            strengths: usedSophisticated.length > 0
+              ? [`Good use of words like: ${usedSophisticated.slice(0, 3).join(", ")}`]
+              : ["Basic vocabulary used correctly"],
+            improvements: [
+              "Replace common words with more academic alternatives (e.g., 'show' → 'demonstrate', 'important' → 'significant')",
+              "Use more topic-specific vocabulary",
+              "Incorporate collocations (e.g., 'make progress', 'take measures', 'raise awareness')",
+              "Avoid repetition by using synonyms"
+            ],
+            vocabularySuggestions: {
+              basic: ["good", "bad", "big", "small", "many", "some"],
+              advanced: ["beneficial/advantageous", "detrimental/adverse", "substantial/considerable", "minimal/negligible", "numerous/abundant", "certain/particular"]
+            }
+          },
+          grammaticalRange: {
+            score: grammarScore,
+            feedback: sentences.length > 8
+              ? "You demonstrate a good range of grammatical structures."
+              : "Try to use more complex sentence structures to demonstrate grammatical range.",
+            strengths: [
+              "Generally accurate use of basic structures",
+              "Good control of simple and compound sentences"
+            ],
+            improvements: [
+              "Use more complex sentences (relative clauses, conditionals)",
+              "Vary sentence beginnings (e.g., start with adverbs, participles)",
+              "Include passive voice where appropriate",
+              "Use perfect tenses to show time relationships"
+            ]
+          }
+        },
+        detailedSuggestions: [
+          "📚 **Vocabulary Enhancement**: Replace common words with academic alternatives. For example, use 'substantial' instead of 'big', 'demonstrate' instead of 'show'.",
+          "🔗 **Cohesive Devices**: Add more linking words like 'Furthermore', 'Moreover', 'Consequently' to connect your ideas smoothly.",
+          "📝 **Sentence Variety**: Mix simple, compound, and complex sentences. Start some sentences with dependent clauses or phrases.",
+          "🎯 **Task Response**: Ensure you address all parts of the question. Provide specific examples to support your points.",
+          "✅ **Grammar Practice**: Work on using conditional sentences, relative clauses, and passive constructions to show grammatical range."
+        ],
+        nextSteps: [
+          "Practice writing with a timer to improve speed",
+          "Read sample band 8-9 essays to see advanced structures",
+          "Build your academic vocabulary list",
+          "Focus on topic-specific vocabulary for common IELTS themes"
+        ]
+      };
+
+      setEvaluation(evaluationResult);
+      setShowEvaluation(true);
+      setIsEvaluating(false);
+
+      // Save evaluation to history
+      const history = JSON.parse(localStorage.getItem("ielts_practice_history") || "[]");
+      history.unshift({
+        id: Date.now(),
+        module: "writing",
+        type: `${testType} Task ${taskNumber}`,
+        topic: topic || generatedTest?.title || "Writing Practice",
+        difficulty,
+        date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString(),
+        score: evaluationResult.overallBand,
+        wordCount: evaluationResult.wordCount,
+        evaluated: true
+      });
+      localStorage.setItem("ielts_practice_history", JSON.stringify(history));
+    }, 2500);
   };
 
   const renderChart = () => {
@@ -586,10 +808,10 @@ export default function WritingPractice() {
               </TabsList>
             </Tabs>
 
-            <Tabs value={taskType} onValueChange={(v) => setTaskType(v as "task1" | "task2")} className="mb-4">
+            <Tabs value={taskNumber} onValueChange={(v) => setTaskNumber(v as "1" | "2")} className="mb-4">
               <TabsList className="grid w-full max-w-md grid-cols-2">
-                <TabsTrigger value="task1">Task 1 (150 words)</TabsTrigger>
-                <TabsTrigger value="task2">Task 2 (250 words)</TabsTrigger>
+                <TabsTrigger value="1">Task 1 (150 words)</TabsTrigger>
+                <TabsTrigger value="2">Task 2 (250 words)</TabsTrigger>
               </TabsList>
             </Tabs>
 
@@ -628,6 +850,76 @@ export default function WritingPractice() {
               </div>
             </div>
 
+            {taskNumber === "1" && testType === "academic" && (
+            <div className="space-y-2">
+              <Label htmlFor="chartType" className="text-white/90">
+                Chart Type
+              </Label>
+              <div className="flex gap-2">
+                <Select value={chartType} onValueChange={setChartType}>
+                  <SelectTrigger className="bg-white/10 border-white/20 text-white backdrop-blur-sm">
+                    <SelectValue placeholder="Select chart type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="random">
+                      <div className="flex items-center gap-2">
+                        <Shuffle className="w-4 h-4" />
+                        Random (Surprise Me!)
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="line">
+                      <div className="flex items-center gap-2">
+                        <LineChart className="w-4 h-4" />
+                        Line Chart
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="bar">
+                      <div className="flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4" />
+                        Bar Chart
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="pie">
+                      <div className="flex items-center gap-2">
+                        <PieChart className="w-4 h-4" />
+                        Pie Chart
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="table">
+                      <div className="flex items-center gap-2">
+                        <TableIcon className="w-4 h-4" />
+                        Table
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="process">
+                      <div className="flex items-center gap-2">
+                        <GitBranch className="w-4 h-4" />
+                        Process Diagram
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="map">
+                      <div className="flex items-center gap-2">
+                        <MapIcon className="w-4 h-4" />
+                        Map
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={() => setChartType("random")}
+                  variant="outline"
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm"
+                  title="Randomize chart type"
+                >
+                  <Shuffle className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-white/70">
+                Choose a specific chart type or use random to practice all types
+              </p>
+            </div>
+            )}
+
             <Button
               onClick={generateTest}
               disabled={isGenerating || !topic}
@@ -638,7 +930,7 @@ export default function WritingPractice() {
               ) : (
                 <>
                   <Sparkles className="w-5 h-5 mr-2" />
-                  Generate {taskType === "task1" ? "Task 1" : "Task 2"} Test
+                  Generate {taskNumber === "1" ? "Task 1" : "Task 2"} Test
                 </>
               )}
             </Button>
@@ -646,127 +938,68 @@ export default function WritingPractice() {
 
           {/* Generated Test */}
           {generatedTest && (
-            <Card className="p-6 bg-white shadow-lg border-0 ring-1 ring-gray-200">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h2 className="text-2xl font-bold mb-2">
-                    IELTS {generatedTest.testType === "academic" ? "Academic" : "General Training"} Writing {generatedTest.taskType === "task1" ? "Task 1" : "Task 2"}
-                  </h2>
-                  <div className="flex gap-2">
-                    <Badge variant="outline" className="border-blue-200 text-blue-700">
-                      {generatedTest.topic}
-                    </Badge>
-                    <Badge variant="outline" className="border-green-200 text-green-700">
-                      Band {generatedTest.difficulty}
-                    </Badge>
+            <Card className="p-6 bg-white dark:bg-gray-800 border-2 border-purple-200 dark:border-purple-800">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <PenTool className="h-5 w-5 text-purple-600" />
+                    Your Answer
+                  </h3>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Word Count: {userAnswer.trim().split(/\s+/).filter(w => w.length > 0).length}
+                    {" / "}
+                    {taskNumber === "1" ? "150 minimum" : "250 minimum"}
                   </div>
                 </div>
-              </div>
 
-              {/* Chart Display for Academic Task 1 */}
-              {generatedTest.chartData && generatedTest.testType === 'academic' && generatedTest.taskType === 'task1' && (
-                <div className="mb-6">
-                  <Alert className="mb-4 border-blue-200 bg-blue-50">
-                    <Info className="h-4 w-4 text-blue-600" />
-                    <AlertDescription className="text-blue-900">
-                      The chart below has been generated to match the data described in your Task 1 prompt. Click on the chart to view it in full-screen mode for detailed analysis.
-                    </AlertDescription>
-                  </Alert>
+                <Textarea
+                  value={userAnswer}
+                  onChange={(e) => setUserAnswer(e.target.value)}
+                  placeholder={`Write your ${taskNumber === "1" ? "Task 1" : "Task 2"} response here...\n\nTips:\n- Task 1: Minimum 150 words (describe the data objectively)\n- Task 2: Minimum 250 words (present arguments with examples)\n- Use formal academic language\n- Organize your ideas into clear paragraphs`}
+                  className="min-h-[400px] font-mono text-base p-4 bg-gray-50 dark:bg-gray-900 border-2 border-gray-300 dark:border-gray-600 focus:border-purple-500 dark:focus:border-purple-400"
+                />
 
-                  <div 
-                    ref={chartRef}
-                    className="bg-white border-2 border-gray-200 rounded-lg p-6 cursor-pointer hover:border-blue-400 transition-all hover:shadow-xl group relative"
-                    onClick={openFullScreen}
+                <div className="flex gap-3">
+                  <Button
+                    onClick={evaluateAnswer}
+                    disabled={isEvaluating || !userAnswer.trim()}
+                    className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-6 text-lg"
                   >
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="flex items-center gap-2 text-sm text-gray-700">
-                        <Maximize2 className="w-4 h-4" />
-                        <span className="font-medium">Click to expand</span>
-                      </div>
-                    </div>
-                    {renderChart()}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-blue-600/10 to-transparent p-4 rounded-b-lg">
-                      <p className="text-sm text-gray-600 font-medium">
-                        {generatedTest.chartData.type.charAt(0).toUpperCase() + generatedTest.chartData.type.slice(1)} Chart - IELTS Academic Writing Task 1
-                      </p>
-                    </div>
+                    {isEvaluating ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
+                        Evaluating Your Answer...
+                      </>
+                    ) : (
+                      <>
+                        <Award className="mr-2 h-5 w-5" />
+                        Evaluate My Answer
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button
+                    onClick={() => {
+                      setUserAnswer("");
+                      setEvaluation(null);
+                      setShowEvaluation(false);
+                    }}
+                    variant="outline"
+                    className="px-6 py-6"
+                  >
+                    Clear
+                  </Button>
+                </div>
+
+                {userAnswer.trim().split(/\s+/).filter(w => w.length > 0).length < (taskNumber === "1" ? 150 : 250) && userAnswer.trim() && (
+                  <div className="flex items-start gap-2 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <div className="text-yellow-600 dark:text-yellow-400 mt-0.5">⚠️</div>
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                      Your answer is below the minimum word count. In the actual IELTS test, you may lose marks for insufficient content.
+                    </p>
                   </div>
-                </div>
-              )}
-
-              {/* Task Prompt */}
-              <div className="bg-gray-50 border-l-4 border-blue-600 p-6 rounded-r-lg mb-6">
-                <h3 className="font-semibold text-lg mb-3 text-gray-900">Task Instructions:</h3>
-                <p className="text-gray-800 whitespace-pre-line leading-relaxed">
-                  {generatedTest.prompt}
-                </p>
+                )}
               </div>
-
-              {/* Requirements */}
-              <div className="mb-6">
-                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 text-blue-600" />
-                  Requirements:
-                </h3>
-                <ul className="space-y-2">
-                  {generatedTest.requirements.map((req: string, idx: number) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <span className="text-blue-600 mt-1">•</span>
-                      <span className="text-gray-700">{req}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Model Answer Structure */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 p-6 rounded-lg mb-6">
-                <h3 className="font-semibold text-lg mb-4 text-blue-900">Model Answer Structure:</h3>
-                <div className="space-y-4">
-                  {Object.entries(generatedTest.modelAnswer).map(([key, value]) => (
-                    <div key={key} className="bg-white p-4 rounded-lg shadow-sm">
-                      <h4 className="font-medium text-blue-800 mb-2 capitalize">
-                        {key.replace(/([A-Z])/g, ' $1').trim()}:
-                      </h4>
-                      <p className="text-gray-700 text-sm leading-relaxed">{value as string}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Assessment Criteria */}
-              <div className="bg-white border border-gray-200 p-6 rounded-lg mb-6">
-                <h3 className="font-semibold text-lg mb-4 text-gray-900">Assessment Criteria:</h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {Object.entries(generatedTest.assessmentCriteria).map(([criterion, description]) => (
-                    <div key={criterion} className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="font-medium text-blue-700 mb-2 capitalize">
-                        {criterion.replace(/([A-Z])/g, ' $1').trim()}
-                      </h4>
-                      <p className="text-gray-600 text-sm">{description as string}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Band Score Guidance */}
-              {generatedTest.bandScoreGuidance && (
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 p-6 rounded-lg">
-                  <h3 className="font-semibold text-lg mb-4 text-green-900">Band Score Guidance:</h3>
-                  <div className="space-y-3">
-                    {Object.entries(generatedTest.bandScoreGuidance).map(([band, guidance]) => (
-                      <div key={band} className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-green-500">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold text-green-700">Band {band}</span>
-                          <Badge variant="outline" className="border-green-300 text-green-700">
-                            {band === difficulty ? "Your Target" : "Reference"}
-                          </Badge>
-                        </div>
-                        <p className="text-gray-700 text-sm">{guidance as string}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </Card>
           )}
         </div>
