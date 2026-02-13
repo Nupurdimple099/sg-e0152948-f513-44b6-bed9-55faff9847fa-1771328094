@@ -15,6 +15,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      listening_tests: {
+        Row: {
+          audio_url: string
+          created_at: string | null
+          difficulty: string
+          id: string
+          questions_json: Json
+          test_title: string
+          test_type: string
+          transcript_text: string
+          updated_at: string | null
+        }
+        Insert: {
+          audio_url: string
+          created_at?: string | null
+          difficulty: string
+          id?: string
+          questions_json: Json
+          test_title: string
+          test_type?: string
+          transcript_text: string
+          updated_at?: string | null
+        }
+        Update: {
+          audio_url?: string
+          created_at?: string | null
+          difficulty?: string
+          id?: string
+          questions_json?: Json
+          test_title?: string
+          test_type?: string
+          transcript_text?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       practice_history: {
         Row: {
           band_score: number | null
