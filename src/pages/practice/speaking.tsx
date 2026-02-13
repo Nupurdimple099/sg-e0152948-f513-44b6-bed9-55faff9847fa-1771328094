@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, ArrowLeft, Sparkles } from "lucide-react";
+import { MessageSquare, ArrowLeft, Sparkles, Mic, Clock, User, Award, Volume2, History } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -68,6 +68,22 @@ export default function SpeakingPractice() {
         : generatePart3Questions(difficulty, topic);
       setGeneratedQuestions(questions);
       setIsGenerating(false);
+
+      // Save to history
+      const historyItem = {
+        id: Date.now().toString(),
+        module: "speaking" as const,
+        type: part.charAt(0).toUpperCase() + part.slice(1),
+        topic: topic,
+        difficulty: difficulty,
+        completedAt: new Date().toISOString(),
+        duration: 15,
+      };
+      
+      const savedHistory = localStorage.getItem("ielts_practice_history");
+      const history = savedHistory ? JSON.parse(savedHistory) : [];
+      history.unshift(historyItem);
+      localStorage.setItem("ielts_practice_history", JSON.stringify(history));
     }, 1500);
   };
 
@@ -666,12 +682,34 @@ Aim for **30-45 second responses** - long enough to develop ideas but not so lon
       
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-red-50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <Link href="/">
-            <Button variant="ghost" className="mb-6 group">
-              <ArrowLeft className="mr-2 w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-              Back to Home
-            </Button>
-          </Link>
+          <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <div className="flex items-center justify-between">
+                <Link href="/" className="flex items-center space-x-2 group">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center transform group-hover:scale-105 transition-transform">
+                    <Award className="w-6 h-6 text-white" />
+                  </div>
+                  <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    IELTS Generator
+                  </span>
+                </Link>
+                <div className="flex items-center gap-2">
+                  <Button asChild variant="outline">
+                    <Link href="/history">
+                      <History className="w-4 h-4 mr-2" />
+                      History
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link href="/">
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Back
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </header>
 
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-4">

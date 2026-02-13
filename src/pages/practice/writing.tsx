@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { BookOpen, FileText, Target, Sparkles, Info, Maximize2, X } from "lucide-react";
+import { BookOpen, FileText, Target, Sparkles, Info, Maximize2, X, Download, PenTool, ArrowLeft, History, Clock, Award } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import {
   Chart as ChartJS,
@@ -350,6 +350,22 @@ export default function WritingPractice() {
       
       setGeneratedTest(test);
       setIsGenerating(false);
+
+      // Save to history
+      const historyItem = {
+        id: Date.now().toString(),
+        module: "writing" as const,
+        type: taskType === "task1" ? "Task 1" : "Task 2",
+        topic: topic,
+        difficulty: difficulty,
+        completedAt: new Date().toISOString(),
+        duration: taskType === "task1" ? 20 : 40,
+      };
+      
+      const savedHistory = localStorage.getItem("ielts_practice_history");
+      const history = savedHistory ? JSON.parse(savedHistory) : [];
+      history.unshift(historyItem);
+      localStorage.setItem("ielts_practice_history", JSON.stringify(history));
     }, 1500);
   };
 
@@ -518,26 +534,31 @@ export default function WritingPractice() {
 
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-40 backdrop-blur-sm bg-white/90">
+        <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-xl shadow-lg">
-                  <FileText className="w-6 h-6 text-white" />
+              <Link href="/" className="flex items-center space-x-2 group">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center transform group-hover:scale-105 transition-transform">
+                  <Award className="w-6 h-6 text-white" />
                 </div>
-                <div>
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                    Writing Practice
-                  </h1>
-                  <p className="text-sm text-gray-500">Task 1 & Task 2 Generator</p>
-                </div>
-              </div>
-              <Link
-                href="/"
-                className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                ← Back to Home
+                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  IELTS Generator
+                </span>
               </Link>
+              <div className="flex items-center gap-2">
+                <Button asChild variant="outline">
+                  <Link href="/history">
+                    <History className="w-4 h-4 mr-2" />
+                    History
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
         </header>

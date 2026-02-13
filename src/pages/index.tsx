@@ -1,7 +1,7 @@
 import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { BookOpen, PenTool, Headphones, MessageSquare, ArrowRight, Award, Target, TrendingUp } from "lucide-react";
+import { BookOpen, PenTool, Headphones, Mic, Award, TrendingUp, Zap, Target, CheckCircle2, ArrowRight, History, MessageSquare } from "lucide-react";
 import Link from "next/link";
 
 export default function Home() {
@@ -62,6 +62,27 @@ export default function Home() {
       />
       
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
+                  <Award className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  IELTS Generator
+                </span>
+              </div>
+              <Button asChild variant="outline">
+                <Link href="/history">
+                  <History className="w-4 h-4 mr-2" />
+                  History
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </header>
+
         {/* Hero Section */}
         <header className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-indigo-600/5 to-purple-600/5" />
