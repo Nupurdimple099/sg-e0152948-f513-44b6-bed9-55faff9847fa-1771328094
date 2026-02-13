@@ -42,18 +42,12 @@ type ModuleFilter = "all" | "reading" | "writing" | "listening" | "speaking";
 type SortOption = "recent" | "oldest" | "score-high" | "score-low";
 
 interface PracticeStats {
-  totalAttempts: number;
-  byModule: {
-    reading: number;
-    writing: number;
-    listening: number;
-    speaking: number;
-  };
-  averageScores: {
-    reading: number;
-    listening: number;
-  };
-  recentActivity: number;
+  total: number;
+  reading: number;
+  writing: number;
+  listening: number;
+  speaking: number;
+  averageBandScore: number;
 }
 
 const moduleIcons = {
@@ -136,7 +130,7 @@ export default function History() {
     if (!user) return;
     
     try {
-      const statistics = await getPracticeStats(user.id);
+      const statistics = await getPracticeStats();
       setStats(statistics);
     } catch (error) {
       console.error("Error loading stats:", error);
@@ -291,42 +285,48 @@ export default function History() {
               <Card>
                 <CardHeader className="pb-3">
                   <CardDescription>Total Attempts</CardDescription>
-                  <CardTitle className="text-3xl">{stats.totalAttempts}</CardTitle>
+                  <CardTitle className="text-3xl">{stats.total}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                     <TrendingUp className="w-4 h-4 text-green-500" />
-                    <span>{stats.recentActivity} this week</span>
+                    <span>View your progress</span>
                   </div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardDescription>Reading Average</CardDescription>
+                  <CardDescription>Average Band Score</CardDescription>
                   <CardTitle className="text-3xl">
-                    {stats.averageScores.reading > 0 ? `${stats.averageScores.reading}/40` : "N/A"}
+                    {stats.averageBandScore > 0 ? stats.averageBandScore : "N/A"}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <FileText className="w-4 h-4 text-blue-500" />
-                    <span>{stats.byModule.reading} attempts</span>
+                    <CheckCircle className="w-4 h-4 text-blue-500" />
+                    <span>Across all modules</span>
                   </div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardDescription>Listening Average</CardDescription>
+                  <CardDescription>Reading & Listening</CardDescription>
                   <CardTitle className="text-3xl">
-                    {stats.averageScores.listening > 0 ? `${stats.averageScores.listening}/40` : "N/A"}
+                    {stats.reading + stats.listening}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <Headphones className="w-4 h-4 text-green-500" />
-                    <span>{stats.byModule.listening} attempts</span>
+                  <div className="flex flex-col gap-1 text-sm text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-3 h-3 text-blue-500" />
+                      <span>{stats.reading} reading</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Headphones className="w-3 h-3 text-green-500" />
+                      <span>{stats.listening} listening</span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -335,18 +335,18 @@ export default function History() {
                 <CardHeader className="pb-3">
                   <CardDescription>Writing & Speaking</CardDescription>
                   <CardTitle className="text-3xl">
-                    {stats.byModule.writing + stats.byModule.speaking}
+                    {stats.writing + stats.speaking}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-col gap-1 text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex items-center gap-2">
                       <PenTool className="w-3 h-3 text-purple-500" />
-                      <span>{stats.byModule.writing} writing</span>
+                      <span>{stats.writing} writing</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <MessageSquare className="w-3 h-3 text-orange-500" />
-                      <span>{stats.byModule.speaking} speaking</span>
+                      <span>{stats.speaking} speaking</span>
                     </div>
                   </div>
                 </CardContent>
