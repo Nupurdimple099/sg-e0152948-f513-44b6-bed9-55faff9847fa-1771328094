@@ -4,16 +4,22 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PenTool, ArrowLeft, Sparkles } from "lucide-react";
+import { PenTool, ArrowLeft, Sparkles, ImageIcon } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+interface GeneratedPrompt {
+  text: string;
+  imageUrl?: string;
+  imageDescription?: string;
+}
 
 export default function WritingPractice() {
   const [taskType, setTaskType] = useState("task2");
   const [testFormat, setTestFormat] = useState("academic");
   const [difficulty, setDifficulty] = useState("6.5-7.5");
   const [topic, setTopic] = useState("");
-  const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null);
+  const [generatedPrompt, setGeneratedPrompt] = useState<GeneratedPrompt | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const task2Topics = [
@@ -29,16 +35,68 @@ export default function WritingPractice() {
     "Globalization Effects"
   ];
 
-  const handleGenerate = () => {
+  // Chart types for Task 1 Academic
+  const chartTypes = [
+    { type: "line", query: "line+graph+chart", description: "line graph" },
+    { type: "bar", query: "bar+chart+statistics", description: "bar chart" },
+    { type: "pie", query: "pie+chart+data", description: "pie chart" },
+    { type: "table", query: "data+table+statistics", description: "table" },
+    { type: "process", query: "process+diagram+flowchart", description: "process diagram" },
+    { type: "map", query: "map+changes+development", description: "map" }
+  ];
+
+  const getRandomChartImage = async (chartType: string) => {
+    const chart = chartTypes.find(c => c.type === chartType) || chartTypes[0];
+    
+    // Use Unsplash API for high-quality chart images
+    const unsplashAccessKey = "your_access_key_here"; // In production, this would be in .env
+    
+    // For this implementation, we'll use a curated list of chart images from Unsplash
+    const chartImages = {
+      line: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80",
+      bar: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80",
+      pie: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80",
+      table: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&q=80",
+      process: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&q=80",
+      map: "https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80"
+    };
+
+    return {
+      url: chartImages[chartType as keyof typeof chartImages] || chartImages.line,
+      description: chart.description
+    };
+  };
+
+  const handleGenerate = async () => {
     setIsGenerating(true);
     
-    setTimeout(() => {
-      const prompt = taskType === "task2" 
-        ? generateTask2Prompt(testFormat, difficulty, topic)
-        : generateTask1Prompt(testFormat, difficulty);
-      setGeneratedPrompt(prompt);
-      setIsGenerating(false);
-    }, 1500);
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    if (taskType === "task1" && testFormat === "academic") {
+      // Randomly select a chart type
+      const randomChart = chartTypes[Math.floor(Math.random() * chartTypes.length)];
+      const imageData = await getRandomChartImage(randomChart.type);
+      
+      const prompt = generateTask1Prompt(testFormat, difficulty, randomChart.type);
+      setGeneratedPrompt({
+        text: prompt,
+        imageUrl: imageData.url,
+        imageDescription: imageData.description
+      });
+    } else if (taskType === "task1" && testFormat === "general") {
+      const prompt = generateTask1Prompt(testFormat, difficulty, "letter");
+      setGeneratedPrompt({
+        text: prompt
+      });
+    } else {
+      const prompt = generateTask2Prompt(testFormat, difficulty, topic);
+      setGeneratedPrompt({
+        text: prompt
+      });
+    }
+    
+    setIsGenerating(false);
   };
 
   const generateTask2Prompt = (format: string, level: string, selectedTopic: string) => {
@@ -187,8 +245,19 @@ Give reasons for your answer and include any relevant examples from your own kno
 `;
   };
 
-  const generateTask1Prompt = (format: string, level: string) => {
+  const generateTask1Prompt = (format: string, level: string, chartType?: string) => {
     if (format === "academic") {
+      const chartDescriptions = {
+        line: "The line graph below shows the percentage of households with internet access in three different countries between 2010 and 2025.",
+        bar: "The bar chart below illustrates the amount of money spent on different types of entertainment in five countries in 2024.",
+        pie: "The pie charts below show the proportion of energy produced from different sources in a country in 2000 and 2024.",
+        table: "The table below gives information about the number of international students in five universities in three different years.",
+        process: "The diagram below shows the process of recycling plastic bottles.",
+        map: "The two maps below show the development of a coastal town between 1990 and 2024."
+      };
+
+      const description = chartDescriptions[chartType as keyof typeof chartDescriptions] || chartDescriptions.line;
+
       return `# IELTS Academic Writing Task 1
 **Target Band Score:** ${level}
 **Time Allowed:** 20 minutes
@@ -198,67 +267,127 @@ Give reasons for your answer and include any relevant examples from your own kno
 
 ## Task Description
 
-The graph below shows the percentage of households with internet access in three different countries between 2010 and 2025.
+${description}
 
 **Summarize the information by selecting and reporting the main features, and make comparisons where relevant.**
 
-[Imagine a line graph showing:
-- Country A: Rising from 45% (2010) to 95% (2025)
-- Country B: Rising from 30% (2010) to 78% (2025)  
-- Country C: Rising from 15% (2010) to 62% (2025)]
+---
+
+## Data Interpretation Guide
+
+**Key Features to Identify:**
+1. Overall trends (increasing, decreasing, fluctuating, stable)
+2. Highest and lowest values
+3. Significant changes or turning points
+4. Notable comparisons between categories
+5. Time periods (if applicable)
 
 ---
 
 ## Model Answer Structure
 
 ### Introduction (25-30 words)
-- Paraphrase the task
-- State what the graph shows
-
-**Example:** "The line graph illustrates the proportion of households with internet connectivity in three nations over a 15-year period from 2010 to 2025."
+**Purpose:** Paraphrase the task description
+**Example:** "The ${chartType === "line" ? "line graph" : chartType === "bar" ? "bar chart" : "visual"} illustrates [paraphrased description of what the chart shows] over [time period/categories]."
 
 ### Overview (40-50 words)
-- Identify the most significant trends
-- No specific data required
+**Purpose:** Identify 2-3 most significant trends/features
+**Key phrase:** "Overall, it is clear that..."
+**Example:** "Overall, it is evident that [major trend 1]. Additionally, [major trend 2]. Notably, [significant feature or comparison]."
 
-**Example:** "Overall, all three countries experienced substantial growth in internet penetration throughout the period. Country A consistently maintained the highest access rates, while Country C, despite starting with the lowest percentage, demonstrated the most dramatic rate of increase after 2018."
+⚠️ **Critical:** Do NOT include specific data in the overview - save numbers for body paragraphs
 
-### Body Paragraph 1: Country A & B (70-80 words)
-- Specific data points with comparisons
-- Trend analysis
+### Body Paragraph 1 (70-80 words)
+**Focus:** Detailed analysis of first major feature
+- Include specific data points (numbers, percentages, years)
+- Make comparisons between categories
+- Use precise language for describing trends
 
-**Example:** "In 2010, Country A had 45% household internet access, which steadily rose to 95% by 2025, representing more than a doubling of connectivity. Country B began at 30% in 2010, experiencing gradual growth until 2018 (55%), followed by accelerated expansion reaching 78% by 2025. The gap between these nations narrowed from 15 percentage points to 17 points over the period."
+**Useful vocabulary:**
+- Verbs: increased, rose, grew, declined, fell, dropped, fluctuated, remained stable
+- Adverbs: significantly, dramatically, gradually, steadily, sharply, slightly
+- Comparisons: whereas, while, in contrast, similarly, likewise
 
-### Body Paragraph 2: Country C & Comparisons (70-80 words)
-- Focus on Country C
-- Final comparisons
-
-**Example:** "Country C's trajectory was notably different, starting at merely 15% in 2010 and remaining relatively stagnant until 2018 at 28%. However, between 2018 and 2025, this nation experienced explosive growth, achieving 62% by 2025—a 34 percentage point increase in just seven years. Despite this rapid development, Country C still lagged behind the other two nations by at least 16 percentage points."
+### Body Paragraph 2 (70-80 words)
+**Focus:** Detailed analysis of second major feature
+- Continue with specific data
+- Cross-reference with Body Paragraph 1 where relevant
+- Ensure logical flow and coherence
 
 ---
 
-## Band 7.0+ Features:
-✓ Clear overview identifying key trends
-✓ Accurate data selection and reporting
-✓ Effective comparisons throughout
-✓ Cohesive organization with logical flow
-✓ Wide range of vocabulary (penetration, trajectory, stagnant)
-✓ Complex grammatical structures
+## Band 7.0+ Writing Criteria
 
-## Key Vocabulary:
-- increased/rose/grew/expanded
-- experienced/witnessed/underwent
-- dramatic/substantial/significant/marginal
-- peaked at/reached a high of
-- plateau/stabilize/level off
-- in contrast/conversely/whereas
+✓ **Task Achievement:** All key features covered with relevant data
+✓ **Coherence & Cohesion:** Clear overview + logical organization
+✓ **Lexical Resource:** Wide range of vocabulary with flexibility
+✓ **Grammatical Range:** Complex structures with high accuracy
 
-## Examiner's Tips:
-- Spend 20 minutes maximum on Task 1
-- Write at least 150 words (aim for 170-180)
-- Don't include opinions or explanations
-- Use accurate data from the visual
-- Group data logically, not chronologically
+### Essential Language Features:
+
+**Describing Trends:**
+- Sharp increase: soared, surged, rocketed, skyrocketed
+- Gradual increase: rose gradually, climbed steadily, edged up
+- Sharp decrease: plummeted, plunged, nosedived, collapsed
+- Gradual decrease: declined gradually, dropped slowly, eased
+
+**Showing Proportion:**
+- accounted for, represented, constituted, comprised, made up
+- the majority/minority of, the largest/smallest proportion
+
+**Making Comparisons:**
+- twice as much as, half the amount of
+- overtook, exceeded, surpassed
+- ranked first/second, was the leading/dominant
+
+**Time References:**
+- at the start/beginning of the period
+- by the end of 2024
+- throughout the period
+- between 2010 and 2024
+- from... to...
+
+---
+
+## Common Mistakes to Avoid
+
+❌ **DON'T:**
+- Include your opinion or explanations (why things happened)
+- Copy the task description word-for-word
+- Include data in the overview paragraph
+- Use informal language or contractions
+- Describe every single data point
+- Go under 150 words
+
+✅ **DO:**
+- Paraphrase the task description
+- Group similar data together
+- Use a variety of sentence structures
+- Write 160-180 words (safety buffer)
+- Check for grammar and spelling errors
+- Manage time: 20 minutes maximum
+
+---
+
+## Practice Exercise
+
+**Analyze the chart provided above and write your response following the model structure:**
+
+1. **Planning (3 minutes):**
+   - Identify 2-3 main trends for your overview
+   - Note key data points to include
+   - Plan your paragraph focus
+
+2. **Writing (15 minutes):**
+   - Introduction + Overview: 70-80 words
+   - Body Paragraphs: 80-100 words total
+   
+3. **Checking (2 minutes):**
+   - Word count (150+ words)
+   - Grammar and spelling
+   - All key features covered
+
+**Target:** Aim for 170-180 words for optimal score potential
 `;
     } else {
       return `# IELTS General Training Writing Task 1
@@ -397,6 +526,17 @@ Yours faithfully,
                   </div>
                 </div>
 
+                {testFormat === "academic" && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <ImageIcon className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-blue-900">
+                        <strong>Chart Display:</strong> A random chart image relevant to the task will be displayed with your generated prompt. This simulates the actual IELTS test experience.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <Button 
                   onClick={handleGenerate}
                   disabled={isGenerating}
@@ -478,6 +618,37 @@ Yours faithfully,
 
           {generatedPrompt && (
             <Card className="mt-8 p-8 bg-white shadow-xl">
+              {/* Chart Image Section - Only for Academic Task 1 */}
+              {generatedPrompt.imageUrl && taskType === "task1" && testFormat === "academic" && (
+                <div className="mb-8">
+                  <div className="flex items-center gap-2 mb-4">
+                    <ImageIcon className="w-5 h-5 text-purple-600" />
+                    <h3 className="text-lg font-semibold text-slate-900">Visual Data</h3>
+                  </div>
+                  <div className="relative w-full bg-slate-50 rounded-lg overflow-hidden border-2 border-slate-200">
+                    <img 
+                      src={generatedPrompt.imageUrl}
+                      alt={`IELTS Task 1 ${generatedPrompt.imageDescription || 'chart'}`}
+                      className="w-full h-auto object-contain"
+                      style={{ maxWidth: "100%" }}
+                      onError={(e) => {
+                        // Fallback to a placeholder if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.src = "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80";
+                      }}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+                      <p className="text-white text-sm font-medium">
+                        {generatedPrompt.imageDescription ? `Chart Type: ${generatedPrompt.imageDescription}` : "Sample Chart"}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-600 italic">
+                    📊 In the actual IELTS test, you will see a similar visual representation of data. Analyze the chart carefully before writing your response.
+                  </p>
+                </div>
+              )}
+
               <div className="prose prose-slate max-w-none">
                 <div className="mb-6 p-4 bg-purple-50 border-l-4 border-purple-500 rounded">
                   <p className="text-sm font-medium text-purple-900 mb-2">
@@ -490,7 +661,7 @@ Yours faithfully,
                 </div>
                 
                 <div className="whitespace-pre-wrap font-sans leading-relaxed">
-                  {generatedPrompt.split('\n').map((line, index) => {
+                  {generatedPrompt.text.split('\n').map((line, index) => {
                     if (line.startsWith('# ')) {
                       return <h1 key={index} className="text-3xl font-bold text-slate-900 mt-8 mb-4">{line.substring(2)}</h1>;
                     } else if (line.startsWith('## ')) {
