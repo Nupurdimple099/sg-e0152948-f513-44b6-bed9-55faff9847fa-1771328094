@@ -1,697 +1,751 @@
 import { SEO } from "@/components/SEO";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PenTool, ArrowLeft, Sparkles, ImageIcon } from "lucide-react";
-import Link from "next/link";
-import { useState, useEffect } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { BookOpen, FileText, Target, Sparkles, Info, Maximize2, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js';
+import { Line, Bar, Pie } from 'react-chartjs-2';
 
-interface GeneratedPrompt {
-  text: string;
-  imageUrl?: string;
-  imageDescription?: string;
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
+
+interface Task1Data {
+  type: 'line' | 'bar' | 'pie' | 'table' | 'process' | 'map';
+  title: string;
+  prompt: string;
+  chartData?: any;
 }
 
 export default function WritingPractice() {
-  const [taskType, setTaskType] = useState("task2");
-  const [testFormat, setTestFormat] = useState("academic");
-  const [difficulty, setDifficulty] = useState("6.5-7.5");
+  const [testType, setTestType] = useState<"academic" | "general">("academic");
+  const [taskType, setTaskType] = useState<"task1" | "task2">("task1");
   const [topic, setTopic] = useState("");
-  const [generatedPrompt, setGeneratedPrompt] = useState<GeneratedPrompt | null>(null);
+  const [difficulty, setDifficulty] = useState("6.5-7.0");
+  const [generatedTest, setGeneratedTest] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const chartRef = useRef<HTMLDivElement>(null);
 
-  const task2Topics = [
-    "Education and Technology",
-    "Environment and Sustainability",
-    "Work-Life Balance",
-    "Social Media Impact",
-    "Healthcare Systems",
-    "Urban Development",
-    "Cultural Preservation",
-    "Government Spending",
-    "Crime and Punishment",
-    "Globalization Effects"
+  const topics = [
+    "Urbanization and Housing",
+    "Technology and Communication",
+    "Education Systems",
+    "Environmental Issues",
+    "Health and Lifestyle",
+    "Employment and Careers",
+    "Transportation",
+    "Energy Consumption",
+    "Tourism and Travel",
+    "Demographics and Population"
   ];
 
-  // Chart types for Task 1 Academic
-  const chartTypes = [
-    { type: "line", query: "line+graph+chart", description: "line graph" },
-    { type: "bar", query: "bar+chart+statistics", description: "bar chart" },
-    { type: "pie", query: "pie+chart+data", description: "pie chart" },
-    { type: "table", query: "data+table+statistics", description: "table" },
-    { type: "process", query: "process+diagram+flowchart", description: "process diagram" },
-    { type: "map", query: "map+changes+development", description: "map" }
+  const difficultyLevels = [
+    { value: "5.0-5.5", label: "Band 5.0-5.5 (Intermediate)" },
+    { value: "6.0-6.5", label: "Band 6.0-6.5 (Upper-Intermediate)" },
+    { value: "6.5-7.0", label: "Band 6.5-7.0 (Advanced)" },
+    { value: "7.0-7.5", label: "Band 7.0-7.5 (Proficient)" },
+    { value: "7.5-8.0", label: "Band 7.5-8.0 (Expert)" }
   ];
 
-  const getRandomChartImage = async (chartType: string) => {
-    const chart = chartTypes.find(c => c.type === chartType) || chartTypes[0];
+  const generateTask1Data = (selectedTopic: string): Task1Data => {
+    const chartTypes: Task1Data['type'][] = ['line', 'bar', 'pie', 'table', 'process', 'map'];
+    const randomType = chartTypes[Math.floor(Math.random() * chartTypes.length)];
+
+    // Generate data based on topic and chart type
+    if (randomType === 'line') {
+      return {
+        type: 'line',
+        title: `Trends in ${selectedTopic} (2015-2024)`,
+        prompt: `The line graph below shows trends in ${selectedTopic.toLowerCase()} over a 10-year period from 2015 to 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.`,
+        chartData: {
+          labels: ['2015', '2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024'],
+          datasets: [
+            {
+              label: 'Country A',
+              data: [45, 52, 58, 65, 72, 68, 75, 82, 88, 95],
+              borderColor: 'rgb(59, 130, 246)',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'Country B',
+              data: [62, 58, 55, 52, 48, 45, 50, 55, 60, 65],
+              borderColor: 'rgb(239, 68, 68)',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              tension: 0.3,
+              fill: true
+            }
+          ]
+        }
+      };
+    } else if (randomType === 'bar') {
+      return {
+        type: 'bar',
+        title: `Comparison of ${selectedTopic} Across Regions`,
+        prompt: `The bar chart below compares ${selectedTopic.toLowerCase()} across different regions in 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.`,
+        chartData: {
+          labels: ['North America', 'Europe', 'Asia', 'South America', 'Africa', 'Oceania'],
+          datasets: [
+            {
+              label: '2023',
+              data: [85, 72, 95, 48, 35, 42],
+              backgroundColor: 'rgba(59, 130, 246, 0.7)',
+              borderColor: 'rgb(59, 130, 246)',
+              borderWidth: 2
+            },
+            {
+              label: '2024',
+              data: [92, 78, 105, 55, 42, 48],
+              backgroundColor: 'rgba(16, 185, 129, 0.7)',
+              borderColor: 'rgb(16, 185, 129)',
+              borderWidth: 2
+            }
+          ]
+        }
+      };
+    } else if (randomType === 'pie') {
+      return {
+        type: 'pie',
+        title: `Distribution of ${selectedTopic} by Category`,
+        prompt: `The pie chart below shows the distribution of ${selectedTopic.toLowerCase()} across different categories in 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.`,
+        chartData: {
+          labels: ['Category A', 'Category B', 'Category C', 'Category D', 'Category E'],
+          datasets: [
+            {
+              data: [35, 25, 20, 12, 8],
+              backgroundColor: [
+                'rgba(59, 130, 246, 0.8)',
+                'rgba(16, 185, 129, 0.8)',
+                'rgba(245, 158, 11, 0.8)',
+                'rgba(239, 68, 68, 0.8)',
+                'rgba(168, 85, 247, 0.8)'
+              ],
+              borderColor: [
+                'rgb(59, 130, 246)',
+                'rgb(16, 185, 129)',
+                'rgb(245, 158, 11)',
+                'rgb(239, 68, 68)',
+                'rgb(168, 85, 247)'
+              ],
+              borderWidth: 2
+            }
+          ]
+        }
+      };
+    } else if (randomType === 'table') {
+      return {
+        type: 'table',
+        title: `${selectedTopic} Statistics Table`,
+        prompt: `The table below presents data on ${selectedTopic.toLowerCase()} across three different years.\n\n| Year | Urban Areas | Rural Areas | National Average |\n|------|-------------|-------------|------------------|\n| 2020 | 72% | 45% | 58% |\n| 2022 | 78% | 52% | 65% |\n| 2024 | 85% | 58% | 72% |\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.`
+      };
+    } else if (randomType === 'process') {
+      return {
+        type: 'process',
+        title: `${selectedTopic} Process Diagram`,
+        prompt: `The diagram below illustrates the process involved in ${selectedTopic.toLowerCase()}.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.\n\n[Process Stages]\n1. Initial Stage → 2. Development Phase → 3. Implementation → 4. Evaluation → 5. Final Outcome`
+      };
+    } else {
+      return {
+        type: 'map',
+        title: `${selectedTopic} - Location Map Comparison`,
+        prompt: `The maps below show the changes in ${selectedTopic.toLowerCase()} between 2010 and 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.\n\n[Map descriptions would typically show spatial changes, development areas, and infrastructure modifications]`
+      };
+    }
+  };
+
+  const generateTask1Academic = (level: string, selectedTopic: string) => {
+    const task1Data = generateTask1Data(selectedTopic);
     
-    // Use Unsplash API for high-quality chart images
-    const unsplashAccessKey = "your_access_key_here"; // In production, this would be in .env
-    
-    // For this implementation, we'll use a curated list of chart images from Unsplash
-    const chartImages = {
-      line: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80",
-      bar: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80",
-      pie: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80",
-      table: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&q=80",
-      process: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&q=80",
-      map: "https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80"
+    return {
+      taskType: "task1",
+      testType: "academic",
+      topic: selectedTopic,
+      difficulty: level,
+      chartData: task1Data,
+      prompt: task1Data.prompt,
+      requirements: [
+        "Write at least 150 words",
+        "Spend about 20 minutes on this task",
+        "Describe the main features and trends",
+        "Make relevant comparisons",
+        "Use appropriate vocabulary and grammar"
+      ],
+      modelAnswer: {
+        introduction: "Begin by paraphrasing the question and stating what the visual data shows overall.",
+        overview: "Provide 2-3 sentences summarizing the most significant trends or features without specific data.",
+        bodyParagraph1: "Describe the first main feature or trend in detail, using specific figures and making comparisons.",
+        bodyParagraph2: "Describe the second main feature or trend, again with specific data and comparisons.",
+        conclusion: "Task 1 does not require a conclusion. End with the final body paragraph.",
+        sampleOpening: `The ${task1Data.type} chart illustrates ${selectedTopic.toLowerCase()} over a specific time period. Overall, it is evident that...`,
+        examinerTip: "Focus on accuracy of data description and clear organization. Avoid giving opinions or reasons for the trends."
+      },
+      assessmentCriteria: {
+        taskAchievement: "Clear overview of main trends/features, appropriate selection of key information, accurate data description",
+        coherenceCohesion: "Logical organization, clear progression, appropriate paragraphing, effective use of cohesive devices",
+        lexicalResource: "Appropriate vocabulary for data description, accurate word choice, some flexibility and precision",
+        grammaticalRange: "Mix of simple and complex sentence structures, good control of grammar, minimal errors"
+      },
+      bandScoreGuidance: {
+        "5.0-5.5": "Basic description with some inaccuracies, limited range of vocabulary and structures",
+        "6.0-6.5": "Clear overview with relevant details, adequate vocabulary, generally good grammar with some errors",
+        "6.5-7.0": "Clear, well-organized response covering key features, good vocabulary range, mostly accurate grammar",
+        "7.0-7.5": "Detailed, accurate description with clear trends, flexible vocabulary use, wide range of structures",
+        "7.5-8.0": "Highly detailed and accurate, sophisticated vocabulary, full range of structures with rare errors"
+      }
     };
+  };
+
+  const generateTask1General = (level: string, selectedTopic: string) => {
+    const situations = [
+      {
+        topic: "Complaint to landlord",
+        prompt: "You are experiencing problems with the heating system in your rented apartment. Write a letter to your landlord. In your letter:\n\n• Explain the problem with the heating\n• Describe the inconvenience this is causing\n• Request immediate action to resolve the issue"
+      },
+      {
+        topic: "Request to manager",
+        prompt: "You need to take time off work to attend a family event. Write a letter to your manager. In your letter:\n\n• Explain the reason for your absence\n• State the dates you need off\n• Offer to complete urgent tasks before leaving"
+      },
+      {
+        topic: "Thank you letter",
+        prompt: "You recently attended a training course for work and found it very useful. Write a letter to your friend who is also interested in the course. In your letter:\n\n• Describe what the course was about\n• Explain why it was useful to you\n• Recommend the course to your friend"
+      }
+    ];
+
+    const situation = situations[Math.floor(Math.random() * situations.length)];
 
     return {
-      url: chartImages[chartType as keyof typeof chartImages] || chartImages.line,
-      description: chart.description
+      taskType: "task1",
+      testType: "general",
+      topic: situation.topic,
+      difficulty: level,
+      prompt: situation.prompt,
+      requirements: [
+        "Write at least 150 words",
+        "Spend about 20 minutes on this task",
+        "Use appropriate tone and register",
+        "Address all three bullet points",
+        "Use proper letter format"
+      ],
+      modelAnswer: {
+        format: "Dear [Name/Sir/Madam],\n\n[Opening paragraph]\n\n[Body paragraphs addressing each bullet point]\n\n[Closing paragraph]\n\nYours [sincerely/faithfully],\n[Your name]",
+        tone: "The tone should be appropriate to the relationship (formal, semi-formal, or informal).",
+        examinerTip: "Make sure to address all three bullet points clearly and use appropriate letter conventions."
+      },
+      assessmentCriteria: {
+        taskAchievement: "All bullet points addressed, appropriate tone, clear purpose, adequate length",
+        coherenceCohesion: "Logical organization, clear paragraphing, appropriate cohesive devices",
+        lexicalResource: "Appropriate vocabulary for the task, correct word choice, some range and flexibility",
+        grammaticalRange: "Mix of sentence structures, good grammar control, minimal errors"
+      }
     };
   };
 
-  const handleGenerate = async () => {
+  const generateTask2 = (level: string, selectedTopic: string) => {
+    const prompts = [
+      {
+        topic: "Technology and Society",
+        question: "Some people believe that technology has made our lives more complex, while others think it has simplified our daily routines. Discuss both views and give your own opinion."
+      },
+      {
+        topic: "Education",
+        question: "Many people argue that traditional classroom learning is becoming obsolete in the digital age. To what extent do you agree or disagree with this statement?"
+      },
+      {
+        topic: "Environment",
+        question: "Some people think that environmental problems are too big for individuals to solve, and that only governments and large companies can make a difference. To what extent do you agree or disagree?"
+      },
+      {
+        topic: "Work and Career",
+        question: "In many countries, people are working longer hours and taking fewer holidays. Discuss the advantages and disadvantages of this trend."
+      },
+      {
+        topic: "Health",
+        question: "Prevention is better than cure. Out of a country's health budget, a large proportion should be diverted from treatment to spending on health education and preventative measures. To what extent do you agree or disagree with this statement?"
+      }
+    ];
+
+    const selectedPrompt = prompts.find(p => p.topic.toLowerCase().includes(selectedTopic.toLowerCase())) 
+                          || prompts[Math.floor(Math.random() * prompts.length)];
+
+    return {
+      taskType: "task2",
+      topic: selectedPrompt.topic,
+      difficulty: level,
+      prompt: selectedPrompt.question,
+      requirements: [
+        "Write at least 250 words",
+        "Spend about 40 minutes on this task",
+        "Present a clear position throughout",
+        "Support ideas with relevant examples",
+        "Use formal academic style"
+      ],
+      modelAnswer: {
+        structure: "Introduction (2-3 sentences) → Body Paragraph 1 (main argument) → Body Paragraph 2 (counter-argument or second point) → Conclusion (2-3 sentences)",
+        introduction: "Paraphrase the question and clearly state your position/thesis.",
+        bodyParagraphs: "Each paragraph should have: Topic sentence → Explanation → Example/Evidence → Link to question",
+        conclusion: "Summarize main points and restate your position clearly.",
+        sampleOpening: "In recent years, there has been considerable debate regarding... While some argue that..., I believe that...",
+        examinerTip: "Develop your ideas fully with specific examples. Avoid listing points without explanation."
+      },
+      assessmentCriteria: {
+        taskResponse: "Clear position throughout, all parts of question addressed, well-developed ideas, relevant examples",
+        coherenceCohesion: "Logical organization, clear progression, effective paragraphing, skillful use of cohesive devices",
+        lexicalResource: "Wide range of vocabulary, accurate word choice, appropriate style, skillful use of collocations",
+        grammaticalRange: "Wide range of structures, full flexibility and accuracy, error-free sentences"
+      },
+      bandScoreGuidance: {
+        "5.0-5.5": "Basic position stated, limited development, repetitive vocabulary, frequent grammatical errors",
+        "6.0-6.5": "Clear position with relevant ideas, adequate vocabulary, generally accurate grammar with some errors",
+        "6.5-7.0": "Well-developed position, good vocabulary range, variety of structures, mostly error-free",
+        "7.0-7.5": "Fully developed position with sophisticated ideas, flexible vocabulary, wide range of structures",
+        "7.5-8.0": "Highly sophisticated argumentation, precise vocabulary, full grammatical control, rare minor errors"
+      }
+    };
+  };
+
+  const generateTest = () => {
+    if (!topic) {
+      alert("Please select a topic");
+      return;
+    }
+
     setIsGenerating(true);
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    if (taskType === "task1" && testFormat === "academic") {
-      // Randomly select a chart type
-      const randomChart = chartTypes[Math.floor(Math.random() * chartTypes.length)];
-      const imageData = await getRandomChartImage(randomChart.type);
+    setTimeout(() => {
+      let test;
+      if (taskType === "task1") {
+        test = testType === "academic" 
+          ? generateTask1Academic(difficulty, topic)
+          : generateTask1General(difficulty, topic);
+      } else {
+        test = generateTask2(difficulty, topic);
+      }
       
-      const prompt = generateTask1Prompt(testFormat, difficulty, randomChart.type);
-      setGeneratedPrompt({
-        text: prompt,
-        imageUrl: imageData.url,
-        imageDescription: imageData.description
-      });
-    } else if (taskType === "task1" && testFormat === "general") {
-      const prompt = generateTask1Prompt(testFormat, difficulty, "letter");
-      setGeneratedPrompt({
-        text: prompt
-      });
-    } else {
-      const prompt = generateTask2Prompt(testFormat, difficulty, topic);
-      setGeneratedPrompt({
-        text: prompt
-      });
-    }
-    
-    setIsGenerating(false);
+      setGeneratedTest(test);
+      setIsGenerating(false);
+    }, 1500);
   };
 
-  const generateTask2Prompt = (format: string, level: string, selectedTopic: string) => {
-    return `# IELTS ${format === "academic" ? "Academic" : "General Training"} Writing Task 2
-**Topic:** ${selectedTopic}
-**Target Band Score:** ${level}
-**Time Allowed:** 40 minutes
-**Minimum Words:** 250
+  const renderChart = () => {
+    if (!generatedTest?.chartData || generatedTest.testType !== 'academic' || generatedTest.taskType !== 'task1') {
+      return null;
+    }
 
----
+    const { type, title, chartData } = generatedTest.chartData;
 
-## Essay Prompt
+    const commonOptions = {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          position: 'top' as const,
+          labels: {
+            font: {
+              size: 12,
+              family: 'Inter'
+            }
+          }
+        },
+        title: {
+          display: true,
+          text: title,
+          font: {
+            size: 16,
+            weight: 'bold' as const,
+            family: 'Inter'
+          },
+          padding: 20
+        }
+      }
+    };
 
-**In many countries, the use of social media platforms has increased dramatically among young people. While some argue this technological advancement benefits communication and learning, others believe it negatively affects mental health and face-to-face interactions.**
+    if (type === 'line') {
+      return (
+        <Line 
+          data={chartData} 
+          options={{
+            ...commonOptions,
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: {
+                  color: 'rgba(0, 0, 0, 0.1)'
+                }
+              },
+              x: {
+                grid: {
+                  color: 'rgba(0, 0, 0, 0.1)'
+                }
+              }
+            }
+          }} 
+        />
+      );
+    } else if (type === 'bar') {
+      return (
+        <Bar 
+          data={chartData} 
+          options={{
+            ...commonOptions,
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: {
+                  color: 'rgba(0, 0, 0, 0.1)'
+                }
+              },
+              x: {
+                grid: {
+                  display: false
+                }
+              }
+            }
+          }} 
+        />
+      );
+    } else if (type === 'pie') {
+      return (
+        <Pie 
+          data={chartData} 
+          options={{
+            ...commonOptions,
+            plugins: {
+              ...commonOptions.plugins,
+              legend: {
+                position: 'right' as const,
+                labels: {
+                  font: {
+                    size: 12,
+                    family: 'Inter'
+                  },
+                  padding: 15
+                }
+              }
+            }
+          }} 
+        />
+      );
+    }
 
-**To what extent do you agree or disagree with the statement that social media does more harm than good to young people?**
-
-Give reasons for your answer and include any relevant examples from your own knowledge or experience.
-
----
-
-## Model Answer Outline
-
-### Introduction (40-50 words)
-**Structure:**
-- Paraphrase the question
-- State your position clearly (partially agree/disagree)
-- Outline the two main points you'll discuss
-
-**Example:**
-"The proliferation of social media among youth has sparked considerable debate regarding its overall impact. While I acknowledge the significant benefits these platforms offer for connectivity and information access, I believe their detrimental effects on mental wellbeing and interpersonal skills outweigh the advantages."
-
----
-
-### Body Paragraph 1: Benefits (100-120 words)
-**Topic Sentence:** Social media platforms undeniably facilitate valuable educational opportunities and global connectivity.
-
-**Supporting Points:**
-1. **Educational Access:** 
-   - Online learning communities and resources
-   - Example: YouTube tutorials, Khan Academy, collaborative study groups
-   - Statistics: 73% of educators report students using social media for academic purposes
-
-2. **Cultural Exchange:**
-   - Exposure to diverse perspectives
-   - Example: Language exchange through apps like HelloTalk
-   - Networking opportunities for future careers
-
-**Concluding Sentence:** These advantages demonstrate that when used judiciously, social media can serve as a powerful tool for personal and academic development.
-
----
-
-### Body Paragraph 2: Harms (130-150 words)
-**Topic Sentence:** However, the psychological and social costs of excessive social media usage present more significant concerns.
-
-**Supporting Points:**
-1. **Mental Health Impact:**
-   - Studies linking social media to anxiety and depression
-   - Example: Research from the Royal Society for Public Health (UK)
-   - Comparison culture and self-esteem issues
-   - Statistics: 70% increase in depression rates correlating with social media adoption
-
-2. **Erosion of Face-to-Face Skills:**
-   - Reduced quality of in-person interactions
-   - Example: Dinner table phone usage becoming normalized
-   - Loss of non-verbal communication competency
-   - Impact on empathy development
-
-3. **Addictive Design:**
-   - Dopamine-driven feedback loops
-   - Screen time averages (5+ hours daily for teenagers)
-
-**Concluding Sentence:** These pervasive negative effects create lasting consequences that compromise young people's developmental foundations.
-
----
-
-### Conclusion (40-50 words)
-**Structure:**
-- Restate position with conviction
-- Summarize key arguments briefly
-- Provide a forward-looking statement or recommendation
-
-**Example:**
-"In conclusion, despite the undeniable communicative and educational merits of social media, the substantial evidence of psychological harm and social skill deterioration suggests its net impact on youth is predominantly negative. Therefore, guided usage and digital literacy education are essential to mitigate these risks."
-
----
-
-## Band Score Assessment Criteria
-
-### Band 7.0+ Features:
-✓ **Task Response:** Clear position with well-developed ideas
-✓ **Coherence:** Logical progression with effective paragraphing
-✓ **Lexical Resource:** Sophisticated vocabulary (proliferation, judiciously, erosion)
-✓ **Grammar:** Complex sentences with accuracy (95%+ error-free)
-
-### Band 6.5 Features:
-✓ **Task Response:** Relevant position with adequate support
-✓ **Coherence:** Clear progression with some cohesive devices
-✓ **Lexical Resource:** Adequate range with some less common items
-✓ **Grammar:** Mix of simple and complex sentences (85%+ accurate)
-
-### Band 6.0 Features:
-✓ **Task Response:** Addresses all parts but may lack full development
-✓ **Coherence:** Adequate organization but may lack progression
-✓ **Lexical Resource:** Adequate vocabulary with some errors
-✓ **Grammar:** Some complex structures attempted (70%+ accurate)
-
----
-
-## Examiner's Tips
-
-### Language Enhancement Strategies:
-1. **Avoid Repetition:** Use synonyms (young people → youth, adolescents, teenagers)
-2. **Cohesive Devices:** Furthermore, Moreover, Conversely, Consequently
-3. **Academic Tone:** Avoid contractions, maintain formal register
-4. **Conditional Structures:** If governments were to implement..., Should parents restrict...
-
-### Common Pitfalls:
-❌ Writing under 250 words (automatic penalty)
-❌ Memorized responses (examiners identify these)
-❌ Overgeneralizing without examples
-❌ Ignoring the specific question instruction ("to what extent")
-
-### Time Management:
-- 5 minutes: Planning and outlining
-- 30 minutes: Writing (10 min intro + para 1, 15 min para 2, 5 min conclusion)
-- 5 minutes: Proofreading and editing
-
----
-
-## Practice Task
-
-**Now write your own essay responding to this prompt. Remember:**
-- Target 270-290 words (buffer above minimum)
-- Use the outline structure provided
-- Include specific examples from your knowledge
-- Check grammar, spelling, and punctuation carefully
-- Ensure each paragraph has a clear central idea
-
-**Self-Assessment Questions:**
-1. Have I clearly stated my position?
-2. Are my main arguments supported with examples?
-3. Have I used a range of vocabulary and sentence structures?
-4. Is my essay logically organized with clear paragraphing?
-5. Have I addressed "to what extent" in my response?
-`;
+    return null;
   };
 
-  const generateTask1Prompt = (format: string, level: string, chartType?: string) => {
-    if (format === "academic") {
-      const chartDescriptions = {
-        line: "The line graph below shows the percentage of households with internet access in three different countries between 2010 and 2025.",
-        bar: "The bar chart below illustrates the amount of money spent on different types of entertainment in five countries in 2024.",
-        pie: "The pie charts below show the proportion of energy produced from different sources in a country in 2000 and 2024.",
-        table: "The table below gives information about the number of international students in five universities in three different years.",
-        process: "The diagram below shows the process of recycling plastic bottles.",
-        map: "The two maps below show the development of a coastal town between 1990 and 2024."
-      };
-
-      const description = chartDescriptions[chartType as keyof typeof chartDescriptions] || chartDescriptions.line;
-
-      return `# IELTS Academic Writing Task 1
-**Target Band Score:** ${level}
-**Time Allowed:** 20 minutes
-**Minimum Words:** 150
-
----
-
-## Task Description
-
-${description}
-
-**Summarize the information by selecting and reporting the main features, and make comparisons where relevant.**
-
----
-
-## Data Interpretation Guide
-
-**Key Features to Identify:**
-1. Overall trends (increasing, decreasing, fluctuating, stable)
-2. Highest and lowest values
-3. Significant changes or turning points
-4. Notable comparisons between categories
-5. Time periods (if applicable)
-
----
-
-## Model Answer Structure
-
-### Introduction (25-30 words)
-**Purpose:** Paraphrase the task description
-**Example:** "The ${chartType === "line" ? "line graph" : chartType === "bar" ? "bar chart" : "visual"} illustrates [paraphrased description of what the chart shows] over [time period/categories]."
-
-### Overview (40-50 words)
-**Purpose:** Identify 2-3 most significant trends/features
-**Key phrase:** "Overall, it is clear that..."
-**Example:** "Overall, it is evident that [major trend 1]. Additionally, [major trend 2]. Notably, [significant feature or comparison]."
-
-⚠️ **Critical:** Do NOT include specific data in the overview - save numbers for body paragraphs
-
-### Body Paragraph 1 (70-80 words)
-**Focus:** Detailed analysis of first major feature
-- Include specific data points (numbers, percentages, years)
-- Make comparisons between categories
-- Use precise language for describing trends
-
-**Useful vocabulary:**
-- Verbs: increased, rose, grew, declined, fell, dropped, fluctuated, remained stable
-- Adverbs: significantly, dramatically, gradually, steadily, sharply, slightly
-- Comparisons: whereas, while, in contrast, similarly, likewise
-
-### Body Paragraph 2 (70-80 words)
-**Focus:** Detailed analysis of second major feature
-- Continue with specific data
-- Cross-reference with Body Paragraph 1 where relevant
-- Ensure logical flow and coherence
-
----
-
-## Band 7.0+ Writing Criteria
-
-✓ **Task Achievement:** All key features covered with relevant data
-✓ **Coherence & Cohesion:** Clear overview + logical organization
-✓ **Lexical Resource:** Wide range of vocabulary with flexibility
-✓ **Grammatical Range:** Complex structures with high accuracy
-
-### Essential Language Features:
-
-**Describing Trends:**
-- Sharp increase: soared, surged, rocketed, skyrocketed
-- Gradual increase: rose gradually, climbed steadily, edged up
-- Sharp decrease: plummeted, plunged, nosedived, collapsed
-- Gradual decrease: declined gradually, dropped slowly, eased
-
-**Showing Proportion:**
-- accounted for, represented, constituted, comprised, made up
-- the majority/minority of, the largest/smallest proportion
-
-**Making Comparisons:**
-- twice as much as, half the amount of
-- overtook, exceeded, surpassed
-- ranked first/second, was the leading/dominant
-
-**Time References:**
-- at the start/beginning of the period
-- by the end of 2024
-- throughout the period
-- between 2010 and 2024
-- from... to...
-
----
-
-## Common Mistakes to Avoid
-
-❌ **DON'T:**
-- Include your opinion or explanations (why things happened)
-- Copy the task description word-for-word
-- Include data in the overview paragraph
-- Use informal language or contractions
-- Describe every single data point
-- Go under 150 words
-
-✅ **DO:**
-- Paraphrase the task description
-- Group similar data together
-- Use a variety of sentence structures
-- Write 160-180 words (safety buffer)
-- Check for grammar and spelling errors
-- Manage time: 20 minutes maximum
-
----
-
-## Practice Exercise
-
-**Analyze the chart provided above and write your response following the model structure:**
-
-1. **Planning (3 minutes):**
-   - Identify 2-3 main trends for your overview
-   - Note key data points to include
-   - Plan your paragraph focus
-
-2. **Writing (15 minutes):**
-   - Introduction + Overview: 70-80 words
-   - Body Paragraphs: 80-100 words total
-   
-3. **Checking (2 minutes):**
-   - Word count (150+ words)
-   - Grammar and spelling
-   - All key features covered
-
-**Target:** Aim for 170-180 words for optimal score potential
-`;
-    } else {
-      return `# IELTS General Training Writing Task 1
-**Target Band Score:** ${level}
-**Time Allowed:** 20 minutes
-**Minimum Words:** 150
-
----
-
-## Task Description
-
-You recently purchased a laptop online, but when it arrived, you discovered it was damaged and missing several accessories mentioned in the product description.
-
-**Write a letter to the company's customer service department. In your letter:**
-- Explain what you ordered and when
-- Describe the problems with the product
-- State what action you want the company to take
-
----
-
-## Model Letter Structure
-
-### Opening (Formal/Semi-formal)
-Dear Sir or Madam,
-
-### Introduction (20-30 words)
-State purpose of letter clearly.
-
-**Example:** "I am writing to express my dissatisfaction with a laptop I purchased from your online store on January 15th, 2026, which arrived in unsatisfactory condition."
-
-### Body Paragraph 1: Order Details (50-60 words)
-**Example:** "I ordered a ProBook 450 G9 (Model #PB450-2026, Order #78453) priced at $1,299, which was advertised as including a protective case, wireless mouse, and 3-year extended warranty documentation. According to your website, the laptop featured a 15.6-inch display, 16GB RAM, and 512GB SSD storage. The estimated delivery was January 20th, and the package arrived on schedule."
-
-### Body Paragraph 2: Problems (60-70 words)
-**Example:** "However, upon opening the package, I discovered multiple issues. First, the laptop's screen has a significant crack in the lower right corner, rendering approximately 20% of the display unusable. Second, the protective case and wireless mouse mentioned in the product description were completely absent from the shipment. Finally, while the warranty card was included, it had already been activated under a different customer's name, making it invalid."
-
-### Body Paragraph 3: Requested Action (40-50 words)
-**Example:** "I request a full replacement of the damaged laptop with a new unit, along with the missing accessories. Alternatively, if a replacement is unavailable, I would accept a complete refund including return shipping costs. I would appreciate your response within five business days and a prepaid return label for the defective item."
-
-### Closing
-Yours faithfully,
-[Your Name]
-
----
-
-## Band 7.0+ Features:
-✓ Appropriate tone (formal complaint)
-✓ All bullet points fully addressed
-✓ Clear organization with logical paragraphs
-✓ Accurate, varied vocabulary
-✓ Complex sentence structures
-✓ Natural cohesive devices
-
-## Key Vocabulary for Complaints:
-- dissatisfaction/disappointment
-- unsatisfactory/defective/damaged
-- as advertised/as described
-- request/require/expect
-- replacement/refund/compensation
-- inconvenience/frustration
-
-## Examiner's Tips:
-- Match the tone to the relationship (formal for unknown recipients)
-- Use consistent register throughout
-- Address ALL three bullet points
-- Include specific details (dates, model numbers)
-- Be polite but firm in complaints
-- Suggest reasonable solutions
-`;
+  const exportChartAsImage = () => {
+    if (chartRef.current) {
+      const canvas = chartRef.current.querySelector('canvas');
+      if (canvas) {
+        const url = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.download = 'ielts-task1-chart.png';
+        link.href = url;
+        link.click();
+      }
     }
+  };
+
+  const openFullScreen = () => {
+    setIsFullScreen(true);
+  };
+
+  const closeFullScreen = () => {
+    setIsFullScreen(false);
   };
 
   return (
     <>
       <SEO 
-        title="IELTS Writing Practice Test Generator"
-        description="Generate authentic IELTS Writing Task 1 and Task 2 prompts with model answer outlines and band score guidance."
+        title="IELTS Writing Practice Test Generator - Academic & General Training"
+        description="Generate authentic IELTS Writing practice tests with Task 1 (Academic/General) and Task 2 essay prompts. Includes dynamic charts, model answers, and expert examiner feedback."
       />
-      
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <Link href="/">
-            <Button variant="ghost" className="mb-6 group">
-              <ArrowLeft className="mr-2 w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-              Back to Home
-            </Button>
-          </Link>
 
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
-                <PenTool className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-4xl font-bold text-slate-900">Writing Practice</h1>
+      {/* Full-Screen Chart Modal */}
+      {isFullScreen && generatedTest?.chartData && (
+        <div 
+          className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeFullScreen}
+        >
+          <div className="relative max-w-7xl w-full max-h-[90vh] bg-white rounded-xl shadow-2xl p-8">
+            <button
+              onClick={closeFullScreen}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 transition-all hover:rotate-90 duration-300"
+            >
+              <X className="w-8 h-8" />
+            </button>
+            
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold text-gray-900">
+                {generatedTest.chartData.title}
+              </h3>
+              <p className="text-sm text-gray-500 mt-2">Full-Screen View - Click outside to close</p>
             </div>
-            <p className="text-lg text-slate-600">
-              Generate writing prompts with detailed model answer outlines and examiner guidance
-            </p>
+            
+            <div 
+              className="bg-gray-50 rounded-lg p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {renderChart()}
+            </div>
           </div>
+        </div>
+      )}
 
-          <Card className="p-8 bg-white/90 backdrop-blur shadow-xl">
-            <Tabs value={taskType} onValueChange={setTaskType} className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="task1">Task 1</TabsTrigger>
-                <TabsTrigger value="task2">Task 2</TabsTrigger>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-40 backdrop-blur-sm bg-white/90">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-xl shadow-lg">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    Writing Practice
+                  </h1>
+                  <p className="text-sm text-gray-500">Task 1 & Task 2 Generator</p>
+                </div>
+              </div>
+              <Link
+                href="/"
+                className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
+              >
+                ← Back to Home
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Alert className="mb-6 border-blue-200 bg-blue-50">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-900">
+              <strong>Senior IELTS Examiner:</strong> Generate authentic IELTS Writing tasks with detailed model answers and assessment criteria. Task 1 Academic includes dynamic charts that match the question data.
+            </AlertDescription>
+          </Alert>
+
+          {/* Test Configuration */}
+          <Card className="p-6 mb-6 bg-white shadow-lg border-0 ring-1 ring-gray-200">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Target className="w-5 h-5 text-blue-600" />
+              Configure Your Writing Test
+            </h2>
+
+            <Tabs value={testType} onValueChange={(v) => setTestType(v as "academic" | "general")} className="mb-4">
+              <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="academic">Academic</TabsTrigger>
+                <TabsTrigger value="general">General Training</TabsTrigger>
               </TabsList>
-
-              <TabsContent value="task1" className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="format-task1" className="text-base font-semibold">Test Format</Label>
-                    <Select value={testFormat} onValueChange={setTestFormat}>
-                      <SelectTrigger id="format-task1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="academic">Academic (Graph/Chart)</SelectItem>
-                        <SelectItem value="general">General Training (Letter)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="difficulty-task1" className="text-base font-semibold">Target Band Score</Label>
-                    <Select value={difficulty} onValueChange={setDifficulty}>
-                      <SelectTrigger id="difficulty-task1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5.0-6.0">Band 5.0 - 6.0</SelectItem>
-                        <SelectItem value="6.0-6.5">Band 6.0 - 6.5</SelectItem>
-                        <SelectItem value="6.5-7.5">Band 6.5 - 7.5</SelectItem>
-                        <SelectItem value="7.5-8.5">Band 7.5 - 8.5</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {testFormat === "academic" && (
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <ImageIcon className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                      <p className="text-sm text-blue-900">
-                        <strong>Chart Display:</strong> A random chart image relevant to the task will be displayed with your generated prompt. This simulates the actual IELTS test experience.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <Button 
-                  onClick={handleGenerate}
-                  disabled={isGenerating}
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-lg py-6"
-                >
-                  {isGenerating ? (
-                    <>Generating Task 1 Prompt...</>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 w-5 h-5" />
-                      Generate Task 1 Prompt
-                    </>
-                  )}
-                </Button>
-              </TabsContent>
-
-              <TabsContent value="task2" className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="format-task2" className="text-base font-semibold">Test Format</Label>
-                    <Select value={testFormat} onValueChange={setTestFormat}>
-                      <SelectTrigger id="format-task2">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="academic">Academic Writing</SelectItem>
-                        <SelectItem value="general">General Training Writing</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="difficulty-task2" className="text-base font-semibold">Target Band Score</Label>
-                    <Select value={difficulty} onValueChange={setDifficulty}>
-                      <SelectTrigger id="difficulty-task2">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5.0-6.0">Band 5.0 - 6.0</SelectItem>
-                        <SelectItem value="6.0-6.5">Band 6.0 - 6.5</SelectItem>
-                        <SelectItem value="6.5-7.5">Band 6.5 - 7.5</SelectItem>
-                        <SelectItem value="7.5-8.5">Band 7.5 - 8.5</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="topic-task2" className="text-base font-semibold">Essay Topic</Label>
-                  <Select value={topic} onValueChange={setTopic}>
-                    <SelectTrigger id="topic-task2">
-                      <SelectValue placeholder="Choose an essay topic" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {task2Topics.map((t) => (
-                        <SelectItem key={t} value={t}>{t}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Button 
-                  onClick={handleGenerate}
-                  disabled={!topic || isGenerating}
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-lg py-6"
-                >
-                  {isGenerating ? (
-                    <>Generating Task 2 Prompt...</>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 w-5 h-5" />
-                      Generate Task 2 Prompt
-                    </>
-                  )}
-                </Button>
-              </TabsContent>
             </Tabs>
+
+            <Tabs value={taskType} onValueChange={(v) => setTaskType(v as "task1" | "task2")} className="mb-4">
+              <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="task1">Task 1 (150 words)</TabsTrigger>
+                <TabsTrigger value="task2">Task 2 (250 words)</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            <div className="grid md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Topic Category
+                </label>
+                <select
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select a topic...</option>
+                  {topics.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Target Band Score
+                </label>
+                <select
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {difficultyLevels.map((level) => (
+                    <option key={level.value} value={level.value}>
+                      {level.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <Button
+              onClick={generateTest}
+              disabled={isGenerating || !topic}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 shadow-lg hover:shadow-xl transition-all"
+            >
+              {isGenerating ? (
+                <>Generating Test...</>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5 mr-2" />
+                  Generate {taskType === "task1" ? "Task 1" : "Task 2"} Test
+                </>
+              )}
+            </Button>
           </Card>
 
-          {generatedPrompt && (
-            <Card className="mt-8 p-8 bg-white shadow-xl">
-              {/* Chart Image Section - Only for Academic Task 1 */}
-              {generatedPrompt.imageUrl && taskType === "task1" && testFormat === "academic" && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-2 mb-4">
-                    <ImageIcon className="w-5 h-5 text-purple-600" />
-                    <h3 className="text-lg font-semibold text-slate-900">Visual Data</h3>
+          {/* Generated Test */}
+          {generatedTest && (
+            <Card className="p-6 bg-white shadow-lg border-0 ring-1 ring-gray-200">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold mb-2">
+                    IELTS {generatedTest.testType === "academic" ? "Academic" : "General Training"} Writing {generatedTest.taskType === "task1" ? "Task 1" : "Task 2"}
+                  </h2>
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="border-blue-200 text-blue-700">
+                      {generatedTest.topic}
+                    </Badge>
+                    <Badge variant="outline" className="border-green-200 text-green-700">
+                      Band {generatedTest.difficulty}
+                    </Badge>
                   </div>
-                  <div className="relative w-full bg-slate-50 rounded-lg overflow-hidden border-2 border-slate-200">
-                    <img 
-                      src={generatedPrompt.imageUrl}
-                      alt={`IELTS Task 1 ${generatedPrompt.imageDescription || 'chart'}`}
-                      className="w-full h-auto object-contain"
-                      style={{ maxWidth: "100%" }}
-                      onError={(e) => {
-                        // Fallback to a placeholder if image fails to load
-                        const target = e.target as HTMLImageElement;
-                        target.src = "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80";
-                      }}
-                    />
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
-                      <p className="text-white text-sm font-medium">
-                        {generatedPrompt.imageDescription ? `Chart Type: ${generatedPrompt.imageDescription}` : "Sample Chart"}
+                </div>
+              </div>
+
+              {/* Chart Display for Academic Task 1 */}
+              {generatedTest.chartData && generatedTest.testType === 'academic' && generatedTest.taskType === 'task1' && (
+                <div className="mb-6">
+                  <Alert className="mb-4 border-blue-200 bg-blue-50">
+                    <Info className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-900">
+                      The chart below has been generated to match the data described in your Task 1 prompt. Click on the chart to view it in full-screen mode for detailed analysis.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div 
+                    ref={chartRef}
+                    className="bg-white border-2 border-gray-200 rounded-lg p-6 cursor-pointer hover:border-blue-400 transition-all hover:shadow-xl group relative"
+                    onClick={openFullScreen}
+                  >
+                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <Maximize2 className="w-4 h-4" />
+                        <span className="font-medium">Click to expand</span>
+                      </div>
+                    </div>
+                    {renderChart()}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-blue-600/10 to-transparent p-4 rounded-b-lg">
+                      <p className="text-sm text-gray-600 font-medium">
+                        {generatedTest.chartData.type.charAt(0).toUpperCase() + generatedTest.chartData.type.slice(1)} Chart - IELTS Academic Writing Task 1
                       </p>
                     </div>
                   </div>
-                  <p className="mt-3 text-sm text-slate-600 italic">
-                    📊 In the actual IELTS test, you will see a similar visual representation of data. Analyze the chart carefully before writing your response.
-                  </p>
                 </div>
               )}
 
-              <div className="prose prose-slate max-w-none">
-                <div className="mb-6 p-4 bg-purple-50 border-l-4 border-purple-500 rounded">
-                  <p className="text-sm font-medium text-purple-900 mb-2">
-                    ✍️ Writing Instructions
-                  </p>
-                  <p className="text-sm text-purple-800">
-                    Read the prompt carefully and plan your response. Follow the model outline provided to structure your answer. 
-                    Remember to check your work for grammar, spelling, and coherence before submitting.
-                  </p>
-                </div>
-                
-                <div className="whitespace-pre-wrap font-sans leading-relaxed">
-                  {generatedPrompt.text.split('\n').map((line, index) => {
-                    if (line.startsWith('# ')) {
-                      return <h1 key={index} className="text-3xl font-bold text-slate-900 mt-8 mb-4">{line.substring(2)}</h1>;
-                    } else if (line.startsWith('## ')) {
-                      return <h2 key={index} className="text-2xl font-bold text-slate-800 mt-6 mb-3 pb-2 border-b-2 border-purple-200">{line.substring(3)}</h2>;
-                    } else if (line.startsWith('### ')) {
-                      return <h3 key={index} className="text-xl font-semibold text-slate-700 mt-5 mb-2">{line.substring(4)}</h3>;
-                    } else if (line.startsWith('**') && line.endsWith('**')) {
-                      return <p key={index} className="font-bold text-slate-900 mt-3">{line.replace(/\*\*/g, '')}</p>;
-                    } else if (line.startsWith('✓ ') || line.startsWith('❌ ')) {
-                      return <p key={index} className="text-slate-700 mb-2 pl-2">{line}</p>;
-                    } else if (line.trim() === '---') {
-                      return <hr key={index} className="my-6 border-slate-200" />;
-                    } else if (line.trim() === '') {
-                      return <br key={index} />;
-                    } else {
-                      return <p key={index} className="text-slate-700 mb-3 leading-relaxed">{line}</p>;
-                    }
-                  })}
+              {/* Task Prompt */}
+              <div className="bg-gray-50 border-l-4 border-blue-600 p-6 rounded-r-lg mb-6">
+                <h3 className="font-semibold text-lg mb-3 text-gray-900">Task Instructions:</h3>
+                <p className="text-gray-800 whitespace-pre-line leading-relaxed">
+                  {generatedTest.prompt}
+                </p>
+              </div>
+
+              {/* Requirements */}
+              <div className="mb-6">
+                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-blue-600" />
+                  Requirements:
+                </h3>
+                <ul className="space-y-2">
+                  {generatedTest.requirements.map((req: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="text-blue-600 mt-1">•</span>
+                      <span className="text-gray-700">{req}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Model Answer Structure */}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 p-6 rounded-lg mb-6">
+                <h3 className="font-semibold text-lg mb-4 text-blue-900">Model Answer Structure:</h3>
+                <div className="space-y-4">
+                  {Object.entries(generatedTest.modelAnswer).map(([key, value]) => (
+                    <div key={key} className="bg-white p-4 rounded-lg shadow-sm">
+                      <h4 className="font-medium text-blue-800 mb-2 capitalize">
+                        {key.replace(/([A-Z])/g, ' $1').trim()}:
+                      </h4>
+                      <p className="text-gray-700 text-sm leading-relaxed">{value as string}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
-              
-              <div className="mt-8 pt-6 border-t border-slate-200">
-                <Button 
-                  onClick={handleGenerate}
-                  variant="outline"
-                  className="w-full border-2"
-                >
-                  Generate Another Prompt
-                </Button>
+
+              {/* Assessment Criteria */}
+              <div className="bg-white border border-gray-200 p-6 rounded-lg mb-6">
+                <h3 className="font-semibold text-lg mb-4 text-gray-900">Assessment Criteria:</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {Object.entries(generatedTest.assessmentCriteria).map(([criterion, description]) => (
+                    <div key={criterion} className="bg-gray-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-blue-700 mb-2 capitalize">
+                        {criterion.replace(/([A-Z])/g, ' $1').trim()}
+                      </h4>
+                      <p className="text-gray-600 text-sm">{description as string}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Band Score Guidance */}
+              {generatedTest.bandScoreGuidance && (
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 p-6 rounded-lg">
+                  <h3 className="font-semibold text-lg mb-4 text-green-900">Band Score Guidance:</h3>
+                  <div className="space-y-3">
+                    {Object.entries(generatedTest.bandScoreGuidance).map(([band, guidance]) => (
+                      <div key={band} className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-green-500">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-green-700">Band {band}</span>
+                          <Badge variant="outline" className="border-green-300 text-green-700">
+                            {band === difficulty ? "Your Target" : "Reference"}
+                          </Badge>
+                        </div>
+                        <p className="text-gray-700 text-sm">{guidance as string}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </Card>
           )}
         </div>
