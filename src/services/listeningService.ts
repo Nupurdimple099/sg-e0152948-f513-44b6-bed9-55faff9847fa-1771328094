@@ -177,6 +177,14 @@ export async function saveListeningTestResult(
   userAnswers: UserAnswer[],
   testData: ListeningTestData
 ): Promise<void> {
+  // Prepare evaluation data object
+  const evaluationData = {
+    results: evaluationResults.results,
+    total_points: evaluationResults.totalPoints,
+    earned_points: evaluationResults.earnedPoints,
+    band_score: evaluationResults.bandScore
+  };
+
   const { error } = await supabase
     .from("practice_history")
     .insert({
@@ -188,13 +196,8 @@ export async function saveListeningTestResult(
       band_score: evaluationResults.bandScore,
       is_evaluated: true,
       user_answer: JSON.stringify(userAnswers),
-      evaluation_data: {
-        results: evaluationResults.results,
-        total_points: evaluationResults.totalPoints,
-        earned_points: evaluationResults.earnedPoints,
-        band_score: evaluationResults.bandScore
-      },
-      test_data: testData
+      evaluation_data: evaluationData as any,
+      test_data: testData as any
     });
 
   if (error) {
