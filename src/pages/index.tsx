@@ -1,270 +1,473 @@
-import { SEO } from "@/components/SEO";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { BookOpen, PenTool, Headphones, Mic, Award, TrendingUp, Zap, Target, CheckCircle2, ArrowRight, History, MessageSquare } from "lucide-react";
-import Link from "next/link";
 import { useState, useEffect } from "react";
+import { SEO } from "@/components/SEO";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BookOpen, PenTool, Headphones, MessageSquare, TrendingUp, Award, Users, ArrowRight, CheckCircle2, ArrowUp } from "lucide-react";
 import { AuthModal } from "@/components/AuthModal";
 import { UserMenu } from "@/components/UserMenu";
+import { useRouter } from "next/router";
 import { supabase } from "@/integrations/supabase/client";
-import { migrateLocalStorageHistory } from "@/services/practiceHistoryService";
+import type { User } from "@supabase/supabase-js";
 
 export default function Home() {
-  const testTypes = [
-    {
-      icon: BookOpen,
-      title: "Reading",
-      description: "700-800 word passages with 13 mixed question types",
-      color: "from-blue-500 to-cyan-500",
-      href: "/practice/reading"
-    },
-    {
-      icon: PenTool,
-      title: "Writing",
-      description: "Task 1 & Task 2 prompts with model answer outlines",
-      color: "from-purple-500 to-pink-500",
-      href: "/practice/writing"
-    },
-    {
-      icon: Headphones,
-      title: "Listening",
-      description: "Audio transcripts with diverse question formats",
-      color: "from-green-500 to-emerald-500",
-      href: "/practice/listening"
-    },
-    {
-      icon: MessageSquare,
-      title: "Speaking",
-      description: "Part 1, 2, 3 questions with examiner feedback criteria",
-      color: "from-orange-500 to-red-500",
-      href: "/practice/speaking"
-    }
-  ];
-
-  const features = [
-    {
-      icon: Award,
-      title: "Cambridge Standards",
-      description: "All materials follow official IELTS examination patterns"
-    },
-    {
-      icon: Target,
-      title: "Targeted Practice",
-      description: "Choose difficulty levels from 5.0 to 8.5 band scores"
-    },
-    {
-      icon: TrendingUp,
-      title: "Detailed Feedback",
-      description: "Comprehensive answer keys with examiner explanations"
-    }
-  ];
-
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const router = useRouter();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [activeSection, setActiveSection] = useState<string>("hero");
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
 
   useEffect(() => {
-    // Check current user session
-    const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+    // Check authentication
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
 
-      // Auto-migrate localStorage history when user logs in
-      if (user) {
-        const { migrated } = await migrateLocalStorageHistory();
-        if (migrated > 0) {
-          console.log(`Migrated ${migrated} practice attempts to Supabase`);
-        }
-      }
-    };
-
-    checkUser();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleAuthSuccess = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-    
-    // Migrate history after successful auth
-    if (user) {
-      await migrateLocalStorageHistory();
+  // Scroll effects
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrolled = window.scrollY;
+      const windowHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const progress = (scrolled / windowHeight) * 100;
+      
+      setScrollProgress(progress);
+      setShowScrollTop(scrolled > 500);
+
+      // Detect active section
+      const sections = ["hero", "modules", "features", "about"];
+      const sectionElements = sections.map(id => document.getElementById(id));
+      
+      for (let i = sectionElements.length - 1; i >= 0; i--) {
+        const section = sectionElements[i];
+        if (section) {
+          const rect = section.getBoundingClientRect();
+          if (rect.top <= 100) {
+            setActiveSection(sections[i]);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      const yOffset = -80; // Account for sticky header
+      const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: "smooth" });
     }
   };
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
+  };
+
+  const modules = [
+    {
+      icon: BookOpen,
+      title: "Reading",
+      description: "Generate academic and general training reading passages with authentic IELTS question types",
+      color: "from-blue-500 to-cyan-500",
+      borderColor: "border-blue-500",
+      href: "/practice/reading",
+    },
+    {
+      icon: PenTool,
+      title: "Writing",
+      description: "Practice Task 1 and Task 2 with detailed model answers and band score breakdowns",
+      color: "from-green-500 to-emerald-500",
+      borderColor: "border-green-500",
+      href: "/practice/writing",
+    },
+    {
+      icon: Headphones,
+      title: "Listening",
+      description: "Complete listening tests with all 4 sections and comprehensive audio scripts",
+      color: "from-purple-500 to-pink-500",
+      borderColor: "border-purple-500",
+      href: "/practice/listening",
+    },
+    {
+      icon: MessageSquare,
+      title: "Speaking",
+      description: "Prepare for all 3 parts with model answers and examiner assessment criteria",
+      color: "from-orange-500 to-red-500",
+      borderColor: "border-orange-500",
+      href: "/practice/speaking",
+    },
+  ];
+
+  const features = [
+    {
+      icon: Award,
+      title: "Cambridge Standard Quality",
+      description: "All content follows official IELTS examination standards and difficulty levels",
+    },
+    {
+      icon: TrendingUp,
+      title: "Band Score Targeting",
+      description: "Customize difficulty from 5.0 to 8.5 to match your target band score",
+    },
+    {
+      icon: Users,
+      title: "Expert Examiner Feedback",
+      description: "Detailed model answers with examiner commentary and assessment criteria",
+    },
+  ];
+
   return (
     <>
-      <SEO 
-        title="IELTS Practice Test Generator | Professional Exam Preparation"
-        description="Generate authentic IELTS practice tests created by a Senior Examiner with 15 years of experience. Cambridge-standard materials for Reading, Writing, Listening, and Speaking."
+      <SEO
+        title="IELTS Practice Test Generator - Cambridge Standard Quality"
+        description="Generate authentic IELTS practice tests for Reading, Writing, Listening, and Speaking. Customizable topics, band score targeting, and expert examiner feedback."
+        image="/og-image.png"
+        url="/"
       />
-      
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Award className="h-8 w-8 text-blue-600" />
-                <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  IELTS Practice
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Link href="/history">
-                  <Button variant="outline" size="sm">
-                    <History className="h-4 w-4 mr-2" />
-                    History
-                  </Button>
-                </Link>
-                {user ? (
-                  <UserMenu onSignOut={() => setUser(null)} />
-                ) : (
-                  <Button onClick={() => setIsAuthModalOpen(true)} size="sm">
-                    Sign In
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-        </header>
 
-        {/* Hero Section */}
-        <header className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-indigo-600/5 to-purple-600/5" />
-          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
-          
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-24">
-            <div className="text-center space-y-8">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                <Award className="w-4 h-4" />
-                Senior IELTS Examiner · 15 Years Experience
-              </div>
-              
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight">
-                <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                  Master IELTS
-                </span>
-                <br />
-                <span className="text-slate-900">with Authentic Practice</span>
+      {/* Scroll Progress Bar */}
+      <div className="fixed top-0 left-0 right-0 h-1 bg-gray-200 dark:bg-gray-800 z-50">
+        <div
+          className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300"
+          style={{ width: `${scrollProgress}%` }}
+        />
+      </div>
+
+      {/* Sticky Header */}
+      <header className="sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Award className="h-8 w-8 text-blue-600" />
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                IELTS Prep Pro
               </h1>
-              
-              <p className="max-w-2xl mx-auto text-lg sm:text-xl text-slate-600 leading-relaxed">
-                Generate Cambridge-standard practice tests tailored to your target band score. 
-                Each test is crafted with examiner-level precision and official IELTS patterns.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <Link href="/practice/reading">
-                  <Button size="lg" className="group bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-lg px-8 py-6">
-                    Start Practice Test
-                    <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                </Link>
-                <Link href="/about">
-                  <Button size="lg" variant="outline" className="text-lg px-8 py-6 border-2">
-                    Learn More
-                  </Button>
-                </Link>
-              </div>
+            </div>
+
+            {/* Navigation Links */}
+            <nav className="hidden md:flex items-center gap-6">
+              <button
+                onClick={() => scrollToSection("hero")}
+                className={`text-sm font-medium transition-colors hover:text-blue-600 ${
+                  activeSection === "hero" ? "text-blue-600" : "text-gray-600 dark:text-gray-300"
+                }`}
+              >
+                Home
+              </button>
+              <button
+                onClick={() => scrollToSection("modules")}
+                className={`text-sm font-medium transition-colors hover:text-blue-600 ${
+                  activeSection === "modules" ? "text-blue-600" : "text-gray-600 dark:text-gray-300"
+                }`}
+              >
+                Modules
+              </button>
+              <button
+                onClick={() => scrollToSection("features")}
+                className={`text-sm font-medium transition-colors hover:text-blue-600 ${
+                  activeSection === "features" ? "text-blue-600" : "text-gray-600 dark:text-gray-300"
+                }`}
+              >
+                Features
+              </button>
+              <button
+                onClick={() => scrollToSection("about")}
+                className={`text-sm font-medium transition-colors hover:text-blue-600 ${
+                  activeSection === "about" ? "text-blue-600" : "text-gray-600 dark:text-gray-300"
+                }`}
+              >
+                About
+              </button>
+            </nav>
+
+            <div className="flex items-center gap-4">
+              {user ? (
+                <UserMenu onSignOut={handleSignOut} />
+              ) : (
+                <Button onClick={() => setShowAuthModal(true)}>Sign In</Button>
+              )}
             </div>
           </div>
-        </header>
+        </div>
+      </header>
+
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-blue-50 dark:from-gray-900 dark:to-slate-900">
+        {/* Hero Section */}
+        <section id="hero" className="pt-20 pb-32 px-4">
+          <div className="container mx-auto max-w-6xl text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 mb-6 animate-fade-in">
+              <Award className="h-5 w-5" />
+              <span className="text-sm font-medium">15 Years of IELTS Expertise</span>
+            </div>
+
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent animate-fade-in-up">
+              Master IELTS with
+              <br />
+              Expert Practice Tests
+            </h1>
+
+            <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto animate-fade-in-up animation-delay-200">
+              Generate authentic Cambridge-standard IELTS practice tests with customizable topics,
+              band score targeting, and expert examiner feedback.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up animation-delay-400">
+              <Button
+                size="lg"
+                className="text-lg px-8 py-6"
+                onClick={() => scrollToSection("modules")}
+              >
+                Start Practicing
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="text-lg px-8 py-6"
+                onClick={() => scrollToSection("features")}
+              >
+                Learn More
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Modules Section */}
+        <section id="modules" className="py-20 px-4 bg-white dark:bg-gray-900">
+          <div className="container mx-auto max-w-6xl">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Practice All Four Modules
+              </h2>
+              <p className="text-gray-600 dark:text-gray-300 text-lg max-w-2xl mx-auto">
+                Comprehensive practice for Reading, Writing, Listening, and Speaking with authentic IELTS content
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-8">
+              {modules.map((module, index) => {
+                const Icon = module.icon;
+                return (
+                  <Card
+                    key={module.title}
+                    className={`group hover:shadow-2xl transition-all duration-300 border-t-4 ${module.borderColor} hover:-translate-y-2 animate-fade-in-up`}
+                    style={{ animationDelay: `${index * 100}ms` }}
+                  >
+                    <CardHeader>
+                      <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${module.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                        <Icon className="h-8 w-8 text-white" />
+                      </div>
+                      <CardTitle className="text-2xl">{module.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-gray-600 dark:text-gray-300 mb-6">
+                        {module.description}
+                      </p>
+                      <Link href={module.href}>
+                        <Button className="w-full group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600">
+                          Start {module.title} Practice
+                          <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        </section>
 
         {/* Features Section */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
-              <Card key={index} className="p-6 bg-white/80 backdrop-blur border-slate-200 hover:shadow-lg transition-shadow">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-lg">
-                    <feature.icon className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-lg text-slate-900 mb-2">{feature.title}</h3>
-                    <p className="text-slate-600">{feature.description}</p>
+        <section id="features" className="py-20 px-4 bg-gradient-to-b from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-900">
+          <div className="container mx-auto max-w-6xl">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                Why Choose IELTS Prep Pro?
+              </h2>
+              <p className="text-gray-600 dark:text-gray-300 text-lg max-w-2xl mx-auto">
+                Professional tools designed to help you achieve your target band score
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-8">
+              {features.map((feature, index) => {
+                const Icon = feature.icon;
+                return (
+                  <Card
+                    key={feature.title}
+                    className="text-center hover:shadow-xl transition-all duration-300 hover:-translate-y-1 animate-fade-in-up"
+                    style={{ animationDelay: `${index * 150}ms` }}
+                  >
+                    <CardHeader>
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4">
+                        <Icon className="h-8 w-8 text-white" />
+                      </div>
+                      <CardTitle className="text-xl">{feature.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-gray-600 dark:text-gray-300">
+                        {feature.description}
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+
+            <div className="mt-16 text-center">
+              <Card className="inline-block p-8 bg-gradient-to-r from-blue-500 to-purple-500 text-white border-0">
+                <div className="flex items-center gap-4 mb-4">
+                  <CheckCircle2 className="h-12 w-12" />
+                  <div className="text-left">
+                    <h3 className="text-2xl font-bold mb-2">Ready to Start?</h3>
+                    <p className="text-blue-100">Join thousands of successful IELTS candidates</p>
                   </div>
                 </div>
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  className="mt-4"
+                  onClick={() => user ? scrollToSection("modules") : setShowAuthModal(true)}
+                >
+                  {user ? "Start Practicing Now" : "Sign Up Free"}
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
               </Card>
-            ))}
+            </div>
           </div>
         </section>
 
-        {/* Test Types Section */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
-              Choose Your Practice Module
+        {/* About Section */}
+        <section id="about" className="py-20 px-4 bg-white dark:bg-gray-900">
+          <div className="container mx-auto max-w-4xl text-center">
+            <h2 className="text-4xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              About IELTS Prep Pro
             </h2>
-            <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              Select from our four comprehensive modules, each designed to replicate 
-              authentic IELTS examination conditions
+            <p className="text-lg text-gray-600 dark:text-gray-300 mb-6">
+              With 15 years of experience as Senior IELTS Examiners, we understand exactly what it takes
+              to achieve your target band score. Our practice tests are designed to match the exact
+              standards of Cambridge IELTS examinations.
             </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {testTypes.map((test, index) => (
-              <Link key={index} href={test.href}>
-                <Card className="group h-full p-6 bg-white hover:shadow-2xl transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-blue-200">
-                  <div className="space-y-4">
-                    <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${test.color} p-3 group-hover:scale-110 transition-transform`}>
-                      <test.icon className="w-full h-full text-white" />
-                    </div>
-                    
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-900 mb-2">{test.title}</h3>
-                      <p className="text-slate-600 text-sm leading-relaxed">{test.description}</p>
-                    </div>
-                    
-                    <div className="flex items-center text-blue-600 font-medium group-hover:translate-x-2 transition-transform">
-                      Start Practice <ArrowRight className="ml-2 w-4 h-4" />
-                    </div>
-                  </div>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        {/* Stats Section */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <Card className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white p-12">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+            <p className="text-lg text-gray-600 dark:text-gray-300 mb-8">
+              Every test, every question, and every model answer is crafted with the same attention to
+              detail and quality that you&apos;ll encounter in the real IELTS examination.
+            </p>
+            <div className="flex flex-wrap justify-center gap-8 text-center">
               <div>
-                <div className="text-5xl font-bold mb-2">15+</div>
-                <div className="text-blue-100">Years of Examining</div>
+                <div className="text-4xl font-bold text-blue-600 mb-2">15+</div>
+                <div className="text-gray-600 dark:text-gray-400">Years Experience</div>
               </div>
               <div>
-                <div className="text-5xl font-bold mb-2">1000+</div>
-                <div className="text-blue-100">Practice Tests Created</div>
+                <div className="text-4xl font-bold text-purple-600 mb-2">1000+</div>
+                <div className="text-gray-600 dark:text-gray-400">Practice Tests</div>
               </div>
               <div>
-                <div className="text-5xl font-bold mb-2">95%</div>
-                <div className="text-blue-100">Student Success Rate</div>
+                <div className="text-4xl font-bold text-pink-600 mb-2">95%</div>
+                <div className="text-gray-600 dark:text-gray-400">Success Rate</div>
               </div>
             </div>
-          </Card>
+          </div>
         </section>
 
         {/* Footer */}
-        <footer className="border-t border-slate-200 bg-white/50 backdrop-blur mt-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <p className="text-center text-slate-600">
-              © 2026 IELTS Practice Test Generator. All materials follow official Cambridge IELTS standards.
-            </p>
+        <footer className="bg-gray-900 text-white py-12 px-4">
+          <div className="container mx-auto max-w-6xl">
+            <div className="grid md:grid-cols-3 gap-8 mb-8">
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Award className="h-6 w-6 text-blue-400" />
+                  <span className="text-xl font-bold">IELTS Prep Pro</span>
+                </div>
+                <p className="text-gray-400">
+                  Professional IELTS practice tests with Cambridge-standard quality.
+                </p>
+              </div>
+              <div>
+                <h3 className="font-bold mb-4">Quick Links</h3>
+                <ul className="space-y-2">
+                  <li>
+                    <button onClick={() => scrollToSection("modules")} className="text-gray-400 hover:text-white transition-colors">
+                      Practice Modules
+                    </button>
+                  </li>
+                  <li>
+                    <button onClick={() => scrollToSection("features")} className="text-gray-400 hover:text-white transition-colors">
+                      Features
+                    </button>
+                  </li>
+                  <li>
+                    <Link href="/privacy" className="text-gray-400 hover:text-white transition-colors">
+                      Privacy Policy
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-bold mb-4">Practice</h3>
+                <ul className="space-y-2">
+                  <li>
+                    <Link href="/practice/reading" className="text-gray-400 hover:text-white transition-colors">
+                      Reading
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/practice/writing" className="text-gray-400 hover:text-white transition-colors">
+                      Writing
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/practice/listening" className="text-gray-400 hover:text-white transition-colors">
+                      Listening
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/practice/speaking" className="text-gray-400 hover:text-white transition-colors">
+                      Speaking
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <div className="border-t border-gray-800 pt-8 text-center text-gray-400">
+              <p>&copy; {new Date().getFullYear()} IELTS Prep Pro. All rights reserved.</p>
+            </div>
           </div>
         </footer>
       </div>
 
-      <AuthModal 
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onSuccess={handleAuthSuccess}
+      {/* Scroll to Top Button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-8 z-50 p-4 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-2xl hover:shadow-3xl hover:scale-110 transition-all duration-300 animate-fade-in"
+          aria-label="Scroll to top"
+        >
+          <ArrowUp className="h-6 w-6" />
+        </button>
+      )}
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={() => setShowAuthModal(false)}
       />
     </>
   );

@@ -19,6 +19,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { AuthModal } from "@/components/AuthModal";
+import { Dashboard } from "@/components/Dashboard";
 import {
   User,
   Mail,
@@ -366,27 +368,24 @@ export default function ProfilePage() {
           </Card>
 
           {/* Profile Management Tabs */}
-          <Card>
+          <Card className="max-w-4xl mx-auto">
             <CardHeader>
               <CardTitle>Account Settings</CardTitle>
-              <CardDescription>Manage your profile information and security settings</CardDescription>
+              <CardDescription>Manage your profile, security settings, and view your progress</CardDescription>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="profile" className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Profile
-                  </TabsTrigger>
-                  <TabsTrigger value="security" className="flex items-center gap-2">
-                    <Lock className="h-4 w-4" />
-                    Security
-                  </TabsTrigger>
-                  <TabsTrigger value="danger" className="flex items-center gap-2">
-                    <Trash2 className="h-4 w-4" />
-                    Danger Zone
-                  </TabsTrigger>
+              <Tabs defaultValue="dashboard" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                  <TabsTrigger value="profile">Profile</TabsTrigger>
+                  <TabsTrigger value="security">Security</TabsTrigger>
+                  <TabsTrigger value="danger">Danger Zone</TabsTrigger>
                 </TabsList>
+
+                {/* Dashboard Tab */}
+                <TabsContent value="dashboard" className="space-y-4 mt-6">
+                  {user && <Dashboard userId={user.id} />}
+                </TabsContent>
 
                 {/* Profile Tab */}
                 <TabsContent value="profile" className="space-y-4 mt-6">

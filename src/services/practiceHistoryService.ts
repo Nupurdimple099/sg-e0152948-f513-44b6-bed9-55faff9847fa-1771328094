@@ -201,6 +201,106 @@ export async function getUserStatistics(userId: string) {
 }
 
 /**
+ * Calculate user's study streak (consecutive days of practice)
+ */
+export async function getStudyStreak(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("practice_history")
+      .select("completed_at")
+      .eq("user_id", userId)
+      .order("completed_at", { ascending: false });
+
+    if (error) throw error;
+    if (!data || data.length === 0) return 0;
+
+    // Get unique practice dates (ignoring time)
+    const practiceDates = Array.from(
+      new Set(
+        data.map(item => new Date(item.completed_at).toDateString())
+      )
+    ).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+    if (practiceDates.length === 0) return 0;
+
+    let streak = 0;
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+    // Check if user practiced today or yesterday to start counting
+    if (practiceDates[0] !== today && practiceDates[0] !== yesterday) {
+      return 0; // Streak broken
+    }
+
+    // Count consecutive days
+    let currentDate = new Date();
+    for (const practiceDate of practiceDates) {
+      const checkDate = new Date(currentDate);
+      checkDate.setHours(0, 0, 0, 0);
+      
+      const practice = new Date(practiceDate);
+      practice.setHours(0, 0, 0, 0);
+      
+      const diffDays = Math.floor((checkDate.getTime() - practice.getTime()) / 86400000);
+      
+      if (diffDays === 0 || diffDays === 1) {
+        streak++;
+        currentDate = practice;
+      } else {
+        break;
+      }
+    }
+
+    return streak;
+  } catch (error) {
+    console.error("Error calculating study streak:", error);
+    return 0;
+  }
+}
+
+/**
+ * Get band score history for chart visualization
+ */
+export async function getBandScoreHistory(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("practice_history")
+      .select("completed_at, band_score, module_type")
+      .eq("user_id", userId)
+      .not("band_score", "is", null)
+      .order("completed_at", { ascending: true });
+
+    if (error) throw error;
+
+    return data || [];
+  } catch (error) {
+    console.error("Error fetching band score history:", error);
+    return [];
+  }
+}
+
+/**
+ * Get recent practice sessions
+ */
+export async function getRecentPractice(userId: string, limit: number = 5) {
+  try {
+    const { data, error } = await supabase
+      .from("practice_history")
+      .select("*")
+      .eq("user_id", userId)
+      .order("completed_at", { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    return data || [];
+  } catch (error) {
+    console.error("Error fetching recent practice:", error);
+    return [];
+  }
+}
+
+/**
  * Delete a practice attempt
  */
 export async function deletePracticeAttempt(id: string) {
