@@ -271,13 +271,11 @@ You will be given a topic card. You have exactly 1 minute to prepare notes, then
 
 Use your 1-minute preparation time to jot down key points:
 
-```
-WHO: _______________________
-HOW I KNOW THEM: _______________________
-WHAT THEY DID: _______________________
-CHANGES IN MY LIFE: _______________________
-WHY IMPORTANT: _______________________
-```
+> WHO: _______________________
+> HOW I KNOW THEM: _______________________
+> WHAT THEY DID: _______________________
+> CHANGES IN MY LIFE: _______________________
+> WHY IMPORTANT: _______________________
 
 ---
 
