@@ -20,9 +20,11 @@ import {
   Headphones,
   MessageSquare,
   Calendar,
-  Award
+  Award,
+  Shield
 } from "lucide-react";
 import { getStudyStreak, getBandScoreHistory, getRecentPractice } from "@/services/practiceHistoryService";
+import Link from "next/link";
 
 ChartJS.register(
   CategoryScale,
@@ -200,7 +202,7 @@ export function Dashboard({ userId }: DashboardProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Study Streak and Latest Score */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Study Streak Card */}
@@ -371,6 +373,52 @@ export function Dashboard({ userId }: DashboardProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm mt-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            {/* Logo and Copyright */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+                <span className="text-white font-bold text-sm">IE</span>
+              </div>
+              <div className="text-center sm:text-left">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  IELTS Practice
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  © 2026 All rights reserved
+                </p>
+              </div>
+            </div>
+
+            {/* Links */}
+            <div className="flex flex-wrap items-center justify-center gap-6">
+              <Link 
+                href="/privacy" 
+                className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+              >
+                <Shield className="w-4 h-4" />
+                Privacy Policy
+              </Link>
+              <a 
+                href="mailto:nupurielts@gmail.com" 
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+              >
+                Contact Support
+              </a>
+            </div>
+          </div>
+
+          {/* Additional Info */}
+          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
+            <p className="text-xs text-center text-gray-500 dark:text-gray-500">
+              Your data is securely stored using <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-purple-600 dark:text-purple-400 hover:underline">Supabase</a> with industry-standard encryption
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

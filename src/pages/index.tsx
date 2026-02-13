@@ -3,7 +3,7 @@ import { SEO } from "@/components/SEO";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, PenTool, Headphones, MessageSquare, TrendingUp, Award, Users, ArrowRight, CheckCircle2, ArrowUp } from "lucide-react";
+import { BookOpen, PenTool, Headphones, MessageSquare, TrendingUp, Award, Users, ArrowRight, CheckCircle2, ArrowUp, Shield } from "lucide-react";
 import { AuthModal } from "@/components/AuthModal";
 import { UserMenu } from "@/components/UserMenu";
 import { useRouter } from "next/router";
@@ -388,66 +388,47 @@ export default function Home() {
         </section>
 
         {/* Footer */}
-        <footer className="bg-gray-900 text-white py-12 px-4">
-          <div className="container mx-auto max-w-6xl">
-            <div className="grid md:grid-cols-3 gap-8 mb-8">
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <Award className="h-6 w-6 text-blue-400" />
-                  <span className="text-xl font-bold">IELTS Prep Pro</span>
+        <footer className="border-t border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              {/* Logo and Copyright */}
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">IE</span>
                 </div>
-                <p className="text-gray-400">
-                  Professional IELTS practice tests with Cambridge-standard quality.
-                </p>
+                <div className="text-center sm:text-left">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    IELTS Practice
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    © 2026 All rights reserved
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold mb-4">Quick Links</h3>
-                <ul className="space-y-2">
-                  <li>
-                    <button onClick={() => scrollToSection("modules")} className="text-gray-400 hover:text-white transition-colors">
-                      Practice Modules
-                    </button>
-                  </li>
-                  <li>
-                    <button onClick={() => scrollToSection("features")} className="text-gray-400 hover:text-white transition-colors">
-                      Features
-                    </button>
-                  </li>
-                  <li>
-                    <Link href="/privacy" className="text-gray-400 hover:text-white transition-colors">
-                      Privacy Policy
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <h3 className="font-bold mb-4">Practice</h3>
-                <ul className="space-y-2">
-                  <li>
-                    <Link href="/practice/reading" className="text-gray-400 hover:text-white transition-colors">
-                      Reading
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/practice/writing" className="text-gray-400 hover:text-white transition-colors">
-                      Writing
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/practice/listening" className="text-gray-400 hover:text-white transition-colors">
-                      Listening
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/practice/speaking" className="text-gray-400 hover:text-white transition-colors">
-                      Speaking
-                    </Link>
-                  </li>
-                </ul>
+
+              {/* Links */}
+              <div className="flex flex-wrap items-center justify-center gap-6">
+                <Link 
+                  href="/privacy" 
+                  className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                >
+                  <Shield className="w-4 h-4" />
+                  Privacy Policy
+                </Link>
+                <a 
+                  href="mailto:nupurielts@gmail.com" 
+                  className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                >
+                  Contact Support
+                </a>
               </div>
             </div>
-            <div className="border-t border-gray-800 pt-8 text-center text-gray-400">
-              <p>&copy; {new Date().getFullYear()} IELTS Prep Pro. All rights reserved.</p>
+
+            {/* Additional Info */}
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
+              <p className="text-xs text-center text-gray-500 dark:text-gray-500">
+                Secure authentication and data storage powered by <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-purple-600 dark:text-purple-400 hover:underline">Supabase</a>
+              </p>
             </div>
           </div>
         </footer>
