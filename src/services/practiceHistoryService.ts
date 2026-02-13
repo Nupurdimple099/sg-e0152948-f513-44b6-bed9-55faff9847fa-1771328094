@@ -143,6 +143,64 @@ export async function getPracticeStats() {
 }
 
 /**
+ * Get user practice statistics
+ */
+export async function getUserStatistics(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("practice_history")
+      .select("*")
+      .eq("user_id", userId);
+
+    if (error) throw error;
+
+    const stats = {
+      totalAttempts: data?.length || 0,
+      averageBandScore: 0,
+      readingCount: 0,
+      writingCount: 0,
+      listeningCount: 0,
+      speakingCount: 0,
+      lastPracticeDate: null as string | null,
+    };
+
+    if (data && data.length > 0) {
+      // Calculate module counts
+      stats.readingCount = data.filter((item) => item.module_type === "reading").length;
+      stats.writingCount = data.filter((item) => item.module_type === "writing").length;
+      stats.listeningCount = data.filter((item) => item.module_type === "listening").length;
+      stats.speakingCount = data.filter((item) => item.module_type === "speaking").length;
+
+      // Calculate average band score (only for evaluated attempts)
+      const evaluatedAttempts = data.filter((item) => item.band_score && item.band_score > 0);
+      if (evaluatedAttempts.length > 0) {
+        const totalScore = evaluatedAttempts.reduce((sum, item) => sum + (item.band_score || 0), 0);
+        stats.averageBandScore = totalScore / evaluatedAttempts.length;
+      }
+
+      // Get last practice date
+      const sortedData = [...data].sort((a, b) => 
+        new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime()
+      );
+      stats.lastPracticeDate = sortedData[0].completed_at;
+    }
+
+    return stats;
+  } catch (error) {
+    console.error("Error getting user statistics:", error);
+    return {
+      totalAttempts: 0,
+      averageBandScore: 0,
+      readingCount: 0,
+      writingCount: 0,
+      listeningCount: 0,
+      speakingCount: 0,
+      lastPracticeDate: null,
+    };
+  }
+}
+
+/**
  * Delete a practice attempt
  */
 export async function deletePracticeAttempt(id: string) {

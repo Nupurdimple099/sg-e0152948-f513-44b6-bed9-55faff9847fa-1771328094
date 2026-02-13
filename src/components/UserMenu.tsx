@@ -10,8 +10,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
-import { User, LogOut, History } from "lucide-react";
+import { User, LogOut, History, BookOpen } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface UserMenuProps {
   onSignOut: () => void;
@@ -20,6 +21,7 @@ interface UserMenuProps {
 export function UserMenu({ onSignOut }: UserMenuProps) {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const getUser = async () => {
@@ -77,6 +79,12 @@ export function UserMenu({ onSignOut }: UserMenuProps) {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/profile" className="cursor-pointer">
+            <User className="mr-2 h-4 w-4" />
+            Profile Settings
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/history" className="cursor-pointer">
             <History className="mr-2 h-4 w-4" />

@@ -222,3 +222,49 @@ export async function isPasswordRecovery() {
   return data.session?.user?.app_metadata?.provider === "email" && 
          window.location.hash.includes("type=recovery");
 }
+
+/**
+ * Update user profile metadata
+ */
+export async function updateProfile(updates: { full_name?: string; avatar_url?: string }) {
+  try {
+    const { data, error } = await supabase.auth.updateUser({
+      data: updates,
+    });
+
+    if (error) throw error;
+    return { success: true, user: data.user };
+  } catch (error: any) {
+    console.error("Profile update error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Delete user account (requires active session)
+ */
+export async function deleteAccount() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error("No user logged in");
+    }
+
+    // Delete user's practice history first (cascading delete should handle this, but explicit is better)
+    const { error: historyError } = await supabase
+      .from("practice_history")
+      .delete()
+      .eq("user_id", user.id);
+
+    if (historyError) throw historyError;
+
+    // Sign out the user
+    await supabase.auth.signOut();
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Account deletion error:", error);
+    return { success: false, error: error.message };
+  }
+}
