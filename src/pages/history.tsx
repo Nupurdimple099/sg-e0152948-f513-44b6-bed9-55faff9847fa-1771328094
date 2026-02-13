@@ -33,7 +33,7 @@ import {
 import type { User } from "@supabase/supabase-js";
 import type { PracticeAttempt } from "@/services/practiceHistoryService";
 import { 
-  getUserPracticeHistory, 
+  getPracticeHistory, 
   deletePracticeAttempt,
   getPracticeStats 
 } from "@/services/practiceHistoryService";
@@ -123,8 +123,8 @@ export default function History() {
     
     setLoading(true);
     try {
-      const history = await getUserPracticeHistory(user.id);
-      setAttempts(history);
+      const history = await getPracticeHistory();
+      setAttempts(history as PracticeAttempt[]);
     } catch (error) {
       console.error("Error loading history:", error);
     } finally {
@@ -160,13 +160,13 @@ export default function History() {
     filtered.sort((a, b) => {
       switch (sortOption) {
         case "recent":
-          return new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime();
+          return new Date(b.completed_at || "").getTime() - new Date(a.completed_at || "").getTime();
         case "oldest":
-          return new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime();
+          return new Date(a.completed_at || "").getTime() - new Date(b.completed_at || "").getTime();
         case "score-high":
-          return (b.score || 0) - (a.score || 0);
+          return (b.band_score || 0) - (a.band_score || 0);
         case "score-low":
-          return (a.score || 0) - (b.score || 0);
+          return (a.band_score || 0) - (b.band_score || 0);
         default:
           return 0;
       }
@@ -463,13 +463,13 @@ export default function History() {
                           <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
                             <div className="flex items-center gap-1">
                               <Calendar className="w-4 h-4" />
-                              <span>{formatDate(attempt.completed_at)}</span>
+                              <span>{formatDate(attempt.completed_at || "")}</span>
                             </div>
                             
-                            {attempt.score !== null && (
+                            {attempt.band_score !== null && attempt.band_score !== undefined && (
                               <div className="flex items-center gap-1">
                                 <CheckCircle className="w-4 h-4 text-green-500" />
-                                <span>Score: {attempt.score}/40</span>
+                                <span>Score: {attempt.band_score}/9.0</span>
                               </div>
                             )}
                             
@@ -480,10 +480,10 @@ export default function History() {
                               </div>
                             )}
                             
-                            {attempt.time_taken && (
+                            {attempt.duration && (
                               <div className="flex items-center gap-1">
                                 <Clock className="w-4 h-4" />
-                                <span>{Math.round(attempt.time_taken / 60)} min</span>
+                                <span>{attempt.duration}</span>
                               </div>
                             )}
                           </div>
@@ -521,7 +521,7 @@ export default function History() {
                       {selectedAttempt.topic || "Practice Attempt"}
                     </DialogTitle>
                     <DialogDescription>
-                      {formatDate(selectedAttempt.completed_at)}
+                      {formatDate(selectedAttempt.completed_at || "")}
                     </DialogDescription>
                   </DialogHeader>
 
@@ -541,9 +541,9 @@ export default function History() {
                           Band {selectedAttempt.difficulty}
                         </Badge>
                       )}
-                      {selectedAttempt.score !== null && (
+                      {selectedAttempt.band_score !== null && selectedAttempt.band_score !== undefined && (
                         <Badge variant="default">
-                          Score: {selectedAttempt.score}/40
+                          Score: {selectedAttempt.band_score}/9.0
                         </Badge>
                       )}
                     </div>
@@ -567,21 +567,22 @@ export default function History() {
                     )}
 
                     {/* User Responses (for Reading/Listening) */}
-                    {selectedAttempt.user_responses && (
+                    {selectedAttempt.evaluation_data && (
                       <div>
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
                           <CheckCircle className="w-4 h-4" />
-                          Your Responses
+                          Feedback
                         </h4>
                         <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            {Object.entries(selectedAttempt.user_responses).map(([key, value]) => (
-                              <div key={key} className="flex items-center gap-2 text-sm">
-                                <span className="font-medium">{key}:</span>
-                                <span className="text-gray-600 dark:text-gray-400">{value as string}</span>
-                              </div>
-                            ))}
-                          </div>
+                           <Alert>
+                            <AlertDescription className="text-sm">
+                              <pre className="whitespace-pre-wrap overflow-x-auto font-sans">
+                                {typeof selectedAttempt.evaluation_data === 'string' 
+                                  ? selectedAttempt.evaluation_data 
+                                  : JSON.stringify(selectedAttempt.evaluation_data, null, 2)}
+                              </pre>
+                            </AlertDescription>
+                          </Alert>
                         </div>
                       </div>
                     )}
