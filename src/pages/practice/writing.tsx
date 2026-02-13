@@ -2,19 +2,13 @@ import { SEO } from "@/components/SEO";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   PenTool,
   ArrowLeft,
@@ -24,19 +18,20 @@ import {
   BookOpen,
   History,
   Sparkles,
-  Download,
-  Maximize2,
-  X,
-  CheckCircle2,
   TrendingUp,
+  CheckCircle2,
+  AlertCircle,
   Lightbulb,
   Target,
+  ArrowRight,
+  Maximize2,
+  X,
   BarChart3,
   LineChart,
   PieChart,
   Table as TableIcon,
+  MapIcon,
   GitBranch,
-  Map as MapIcon,
   Shuffle,
   Info
 } from "lucide-react";
@@ -52,9 +47,9 @@ import {
   Title,
   Tooltip,
   Legend,
-  Filler
 } from 'chart.js';
 import { Line, Bar, Pie } from 'react-chartjs-2';
+import { AuthModal } from "@/components/AuthModal";
 
 ChartJS.register(
   CategoryScale,
@@ -65,8 +60,7 @@ ChartJS.register(
   ArcElement,
   Title,
   Tooltip,
-  Legend,
-  Filler
+  Legend
 );
 
 interface Task1Data {
@@ -88,8 +82,30 @@ export default function WritingPractice() {
   const [evaluation, setEvaluation] = useState<any>(null);
   const [showEvaluation, setShowEvaluation] = useState(false);
   const [chartType, setChartType] = useState<string>("random");
-  const chartRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<HTMLCanvasElement | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (userAnswer.trim().split(/\s+/).filter(w => w.length > 0).length < (taskNumber === "1" ? 150 : 250)) {
+      setShowEvaluation(false);
+    }
+  }, [userAnswer, taskNumber]);
 
   const topics = [
     "Urbanization and Housing",
@@ -427,20 +443,26 @@ export default function WritingPractice() {
       setIsGenerating(false);
 
       // Save to history
-      const historyItem = {
-        id: Date.now().toString(),
-        module: "writing" as const,
-        type: taskNumber === "1" ? "Task 1" : "Task 2",
-        topic: topic,
-        difficulty: difficulty,
-        completedAt: new Date().toISOString(),
-        duration: taskNumber === "1" ? 20 : 40,
-      };
-      
-      const savedHistory = localStorage.getItem("ielts_practice_history");
-      const history = savedHistory ? JSON.parse(savedHistory) : [];
-      history.unshift(historyItem);
-      localStorage.setItem("ielts_practice_history", JSON.stringify(history));
+      if (user) {
+        savePracticeAttempt({
+          module_type: "writing",
+          test_type: taskNumber === "1" ? "task1" : "task2",
+          topic: topic,
+          difficulty: difficulty,
+          test_data: generatedTest
+        }).catch(error => console.error("Error saving to Supabase:", error));
+      } else {
+        const history = JSON.parse(localStorage.getItem("ielts_practice_history") || "[]");
+        history.unshift({
+          id: Date.now().toString(),
+          module_type: "writing",
+          test_type: taskNumber === "1" ? "task1" : "task2",
+          topic: topic,
+          difficulty: difficulty,
+          completed_at: new Date().toISOString(),
+        });
+        localStorage.setItem("ielts_practice_history", JSON.stringify(history));
+      }
     }, 1500);
   };
 
@@ -588,6 +610,42 @@ export default function WritingPractice() {
         evaluated: true
       });
       localStorage.setItem("ielts_practice_history", JSON.stringify(history));
+
+      // Save evaluated attempt to history
+      setTimeout(() => {
+        setIsEvaluating(false);
+        setShowEvaluation(true);
+        
+        // Save evaluated attempt to history
+        if (user) {
+          savePracticeAttempt({
+            module_type: "writing",
+            test_type: taskNumber === "1" ? "task1" : "task2",
+            topic: generatedTest?.topic || topic,
+            difficulty: difficulty,
+            word_count: wordCount,
+            band_score: evaluation.overallBand,
+            is_evaluated: true,
+            user_answer: userAnswer,
+            evaluation_data: evaluation,
+            test_data: generatedTest
+          }).catch(error => console.error("Error saving evaluation:", error));
+        } else {
+          const history = JSON.parse(localStorage.getItem("ielts_practice_history") || "[]");
+          history.unshift({
+            id: Date.now().toString(),
+            module_type: "writing",
+            test_type: taskNumber === "1" ? "task1" : "task2",
+            topic: generatedTest?.topic || topic,
+            difficulty: difficulty,
+            completed_at: new Date().toISOString(),
+            word_count: wordCount,
+            band_score: evaluation.overallBand,
+            is_evaluated: true,
+          });
+          localStorage.setItem("ielts_practice_history", JSON.stringify(history));
+        }
+      }, 2500);
     }, 2500);
   };
 
@@ -756,30 +814,29 @@ export default function WritingPractice() {
 
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
         {/* Header */}
-        <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+          <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
-              <Link href="/" className="flex items-center space-x-2 group">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center transform group-hover:scale-105 transition-transform">
-                  <Award className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  IELTS Generator
-                </span>
+              <Link href="/">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Home
+                </Button>
               </Link>
-              <div className="flex items-center gap-2">
-                <Button asChild variant="outline">
-                  <Link href="/history">
-                    <History className="w-4 h-4 mr-2" />
+              <div className="flex items-center gap-3">
+                <Link href="/history">
+                  <Button variant="outline" size="sm">
+                    <History className="h-4 w-4 mr-2" />
                     History
-                  </Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link href="/">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back
-                  </Link>
-                </Button>
+                  </Button>
+                </Link>
+                {user ? (
+                  <UserMenu onSignOut={() => setUser(null)} />
+                ) : (
+                  <Button onClick={() => setIsAuthModalOpen(true)} size="sm">
+                    Sign In
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -963,7 +1020,7 @@ export default function WritingPractice() {
                   <Button
                     onClick={evaluateAnswer}
                     disabled={isEvaluating || !userAnswer.trim()}
-                    className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-6 text-lg"
+                    className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-6 text-lg"
                   >
                     {isEvaluating ? (
                       <>
@@ -1004,6 +1061,18 @@ export default function WritingPractice() {
           )}
         </div>
       </div>
+
+      <AuthModal 
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={() => {
+          const checkUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setUser(user);
+          };
+          checkUser();
+        }}
+      />
     </>
   );
 }

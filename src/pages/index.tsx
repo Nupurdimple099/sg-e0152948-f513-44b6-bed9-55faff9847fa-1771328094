@@ -3,6 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BookOpen, PenTool, Headphones, Mic, Award, TrendingUp, Zap, Target, CheckCircle2, ArrowRight, History, MessageSquare } from "lucide-react";
 import Link from "next/link";
+import { useState, useEffect } from "react";
+import { AuthModal } from "@/components/AuthModal";
+import { UserMenu } from "@/components/UserMenu";
+import { supabase } from "@/integrations/supabase/client";
+import { migrateLocalStorageHistory } from "@/services/practiceHistoryService";
 
 export default function Home() {
   const testTypes = [
@@ -54,6 +59,44 @@ export default function Home() {
     }
   ];
 
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    // Check current user session
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+
+      // Auto-migrate localStorage history when user logs in
+      if (user) {
+        const { migrated } = await migrateLocalStorageHistory();
+        if (migrated > 0) {
+          console.log(`Migrated ${migrated} practice attempts to Supabase`);
+        }
+      }
+    };
+
+    checkUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleAuthSuccess = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    setUser(user);
+    
+    // Migrate history after successful auth
+    if (user) {
+      await migrateLocalStorageHistory();
+    }
+  };
+
   return (
     <>
       <SEO 
@@ -62,23 +105,30 @@ export default function Home() {
       />
       
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+          <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
-                  <Award className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  IELTS Generator
+              <div className="flex items-center gap-2">
+                <Award className="h-8 w-8 text-blue-600" />
+                <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  IELTS Practice
                 </span>
               </div>
-              <Button asChild variant="outline">
+              <div className="flex items-center gap-3">
                 <Link href="/history">
-                  <History className="w-4 h-4 mr-2" />
-                  History
+                  <Button variant="outline" size="sm">
+                    <History className="h-4 w-4 mr-2" />
+                    History
+                  </Button>
                 </Link>
-              </Button>
+                {user ? (
+                  <UserMenu onSignOut={() => setUser(null)} />
+                ) : (
+                  <Button onClick={() => setIsAuthModalOpen(true)} size="sm">
+                    Sign In
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -210,6 +260,12 @@ export default function Home() {
           </div>
         </footer>
       </div>
+
+      <AuthModal 
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={handleAuthSuccess}
+      />
     </>
   );
 }

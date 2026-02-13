@@ -1,12 +1,16 @@
 import { SEO } from "@/components/SEO";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, ArrowLeft, Sparkles, Mic, Clock, User, Award, Volume2, History } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
+import { MessageSquare, ArrowLeft, Sparkles, Mic, Clock, User, Award, Volume2, History, Target } from "lucide-react";
+import { useState, useEffect } from "react";
+import { AuthModal } from "@/components/AuthModal";
+import { UserMenu } from "@/components/UserMenu";
+import { supabase } from "@/integrations/supabase/client";
+import { savePracticeAttempt } from "@/services/practiceHistoryService";
 
 export default function SpeakingPractice() {
   const [part, setPart] = useState("part1");
@@ -14,76 +18,64 @@ export default function SpeakingPractice() {
   const [topic, setTopic] = useState("");
   const [generatedQuestions, setGeneratedQuestions] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  const part1Topics = [
-    "Home and Accommodation",
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const getTopics = () => [
     "Work and Studies",
-    "Hometown and City",
-    "Hobbies and Interests",
-    "Daily Routine",
-    "Food and Cooking",
-    "Technology and Gadgets",
-    "Travel and Holidays"
+    "Hometown and Accommodation",
+    "Leisure Time and Hobbies",
+    "Travel and Holidays",
+    "Technology and Media",
+    "Family and Friends",
+    "Food and Dining",
+    "Health and Fitness",
+    "Environment and Nature",
+    "Art and Culture"
   ];
-
-  const part2Topics = [
-    "Describe a person who influenced you",
-    "Describe a place you visited",
-    "Describe an important event",
-    "Describe a skill you learned",
-    "Describe a book or film",
-    "Describe a memorable experience",
-    "Describe an achievement",
-    "Describe a problem you solved"
-  ];
-
-  const part3Topics = [
-    "Education and Learning Methods",
-    "Technology and Society",
-    "Environmental Issues",
-    "Work-Life Balance",
-    "Cultural Traditions",
-    "Media and Communication",
-    "Health and Lifestyle",
-    "Urban Development"
-  ];
-
-  const getTopics = () => {
-    switch (part) {
-      case "part1": return part1Topics;
-      case "part2": return part2Topics;
-      case "part3": return part3Topics;
-      default: return part1Topics;
-    }
-  };
 
   const handleGenerate = () => {
     setIsGenerating(true);
     
     setTimeout(() => {
-      const questions = part === "part1" 
-        ? generatePart1Questions(difficulty, topic)
-        : part === "part2"
-        ? generatePart2Questions(difficulty, topic)
-        : generatePart3Questions(difficulty, topic);
-      setGeneratedQuestions(questions);
       setIsGenerating(false);
+      
+      const testData = { content: generatedQuestions };
 
       // Save to history
-      const historyItem = {
-        id: Date.now().toString(),
-        module: "speaking" as const,
-        type: part.charAt(0).toUpperCase() + part.slice(1),
-        topic: topic,
-        difficulty: difficulty,
-        completedAt: new Date().toISOString(),
-        duration: 15,
-      };
-      
-      const savedHistory = localStorage.getItem("ielts_practice_history");
-      const history = savedHistory ? JSON.parse(savedHistory) : [];
-      history.unshift(historyItem);
-      localStorage.setItem("ielts_practice_history", JSON.stringify(history));
+      if (user) {
+        savePracticeAttempt({
+          module_type: "speaking",
+          topic: topic,
+          difficulty: difficulty,
+          test_data: testData
+        }).catch(error => console.error("Error saving to Supabase:", error));
+      } else {
+        const history = JSON.parse(localStorage.getItem("ielts_practice_history") || "[]");
+        history.unshift({
+          id: Date.now().toString(),
+          module_type: "speaking",
+          topic: topic,
+          difficulty: difficulty,
+          test_data: testData,
+          completed_at: new Date().toISOString(),
+        });
+        localStorage.setItem("ielts_practice_history", JSON.stringify(history));
+      }
     }, 1500);
   };
 
@@ -628,11 +620,10 @@ One potential concern is that these advances could exacerbate educational inequa
 
 1. **Think before speaking** - Take 2-3 seconds to organize your thoughts
 2. **Structure your answer**: Point → Reason → Example → Conclusion
-3. **Practice abstract thinking** - Move from specific to general concepts
-4. **Develop both sides** of arguments before concluding
-5. **Use discourse markers** to guide the examiner through your reasoning
-6. **Record and analyze** your responses for vocabulary and grammar range
-7. **Engage with current affairs** to have relevant examples ready
+3. **Develop both sides** of arguments before concluding
+4. **Use discourse markers** to guide the examiner through your reasoning
+5. **Record and analyze** your responses for vocabulary and grammar range
+6. **Engage with current affairs** to have relevant examples ready
 
 ---
 
@@ -682,8 +673,8 @@ Aim for **30-45 second responses** - long enough to develop ideas but not so lon
       
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-red-50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+            <div className="container mx-auto px-4 py-4">
               <div className="flex items-center justify-between">
                 <Link href="/" className="flex items-center space-x-2 group">
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center transform group-hover:scale-105 transition-transform">
@@ -693,18 +684,15 @@ Aim for **30-45 second responses** - long enough to develop ideas but not so lon
                     IELTS Generator
                   </span>
                 </Link>
-                <div className="flex items-center gap-2">
-                  <Button asChild variant="outline">
-                    <Link href="/history">
-                      <History className="w-4 h-4 mr-2" />
+                <div className="flex items-center gap-3">
+                  <Link href="/history">
+                    <Button variant="outline" size="sm">
+                      <History className="h-4 w-4 mr-2" />
                       History
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline">
-                    <Link href="/">
-                      <ArrowLeft className="w-4 h-4 mr-2" />
-                      Back
-                    </Link>
+                    </Button>
+                  </Link>
+                  <Button size="sm">
+                    Sign In
                   </Button>
                 </div>
               </div>
@@ -951,6 +939,17 @@ Aim for **30-45 second responses** - long enough to develop ideas but not so lon
               </div>
             </Card>
           )}
+          <AuthModal 
+            isOpen={isAuthModalOpen}
+            onClose={() => setIsAuthModalOpen(false)}
+            onSuccess={() => {
+              const checkUser = async () => {
+                const { data: { user } } = await supabase.auth.getUser();
+                setUser(user);
+              };
+              checkUser();
+            }}
+          />
         </div>
       </div>
     </>

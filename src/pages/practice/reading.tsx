@@ -6,7 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { BookOpen, ArrowLeft, Target, Clock, CheckCircle2, XCircle, AlertCircle, Award, History, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { AuthModal } from "@/components/AuthModal";
+import { UserMenu } from "@/components/UserMenu";
+import { supabase } from "@/integrations/supabase/client";
+import { savePracticeAttempt } from "@/services/practiceHistoryService";
 
 export default function ReadingPractice() {
   const [testType, setTestType] = useState("academic");
@@ -14,6 +18,23 @@ export default function ReadingPractice() {
   const [topic, setTopic] = useState("");
   const [generatedTest, setGeneratedTest] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // Check user session
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const topics = [
     "Urbanization and City Planning",
@@ -32,25 +53,32 @@ export default function ReadingPractice() {
     setIsGenerating(true);
     
     setTimeout(() => {
-      const test = generateReadingTest(testType, difficulty, topic);
-      setGeneratedTest(test);
       setIsGenerating(false);
+      
+      const testData = { content: generatedTest };
 
       // Save to history
-      const historyItem = {
-        id: Date.now().toString(),
-        module: "reading" as const,
-        type: "Reading Passage",
-        topic: topic,
-        difficulty: difficulty,
-        completedAt: new Date().toISOString(),
-        duration: 60,
-      };
-      
-      const savedHistory = localStorage.getItem("ielts_practice_history");
-      const history = savedHistory ? JSON.parse(savedHistory) : [];
-      history.unshift(historyItem);
-      localStorage.setItem("ielts_practice_history", JSON.stringify(history));
+      if (user) {
+        // Save to Supabase for logged-in users
+        savePracticeAttempt({
+          module_type: "reading",
+          topic: topic,
+          difficulty: difficulty,
+          test_data: testData
+        }).catch(error => console.error("Error saving to Supabase:", error));
+      } else {
+        // Fallback to localStorage for non-logged-in users
+        const history = JSON.parse(localStorage.getItem("ielts_practice_history") || "[]");
+        history.unshift({
+          id: Date.now().toString(),
+          module_type: "reading",
+          topic: topic,
+          difficulty: difficulty,
+          test_data: testData,
+          completed_at: new Date().toISOString(),
+        });
+        localStorage.setItem("ielts_practice_history", JSON.stringify(history));
+      }
     }, 1500);
   };
 
@@ -163,30 +191,29 @@ Urban green spaces provide multiple benefits beyond aesthetics. They function as
       />
       
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+          <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
-              <Link href="/" className="flex items-center space-x-2 group">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center transform group-hover:scale-105 transition-transform">
-                  <Award className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  IELTS Generator
-                </span>
+              <Link href="/">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Home
+                </Button>
               </Link>
-              <div className="flex items-center gap-2">
-                <Button asChild variant="outline">
-                  <Link href="/history">
-                    <History className="w-4 h-4 mr-2" />
+              <div className="flex items-center gap-3">
+                <Link href="/history">
+                  <Button variant="outline" size="sm">
+                    <History className="h-4 w-4 mr-2" />
                     History
-                  </Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link href="/">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back
-                  </Link>
-                </Button>
+                  </Button>
+                </Link>
+                {user ? (
+                  <UserMenu onSignOut={() => setUser(null)} />
+                ) : (
+                  <Button onClick={() => setIsAuthModalOpen(true)} size="sm">
+                    Sign In
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -315,6 +342,18 @@ Urban green spaces provide multiple benefits beyond aesthetics. They function as
           )}
         </div>
       </div>
+
+      <AuthModal 
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={() => {
+          const checkUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setUser(user);
+          };
+          checkUser();
+        }}
+      />
     </>
   );
 }
