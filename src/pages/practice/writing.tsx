@@ -1,606 +1,523 @@
-import { SEO } from "@/components/SEO";
-import Link from "next/link";
+import { useRouter } from "next/router";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, Clock, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, FileText, PenTool, CheckCircle2, Clock, AlertCircle, ChevronDown, Minimize2, Sparkles, Loader2, Brain } from "lucide-react";
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { savePracticeAttempt } from "@/services/practiceHistoryService";
-import { AuthModal } from "@/components/AuthModal";
+import { Progress } from "@/components/ui/progress";
 
-type TaskType = "task1" | "task2";
-type Task1Type = "bar" | "line" | "pie" | "table" | "process" | "map";
-type Difficulty = "5.5" | "6.0" | "6.5" | "7.0" | "7.5" | "8.0";
-
-interface Task1Data {
-  type: "task1";
-  chartType: Task1Type;
-  title: string;
-  description: string;
-  chartData: {
-    labels: string[];
-    datasets: Array<{
-      label: string;
-      data: number[];
-    }>;
-  };
-  taskPrompt: string;
-  sampleAnswer: string;
-  wordCount: number;
-  bandScore: string;
-  examinerComments: string;
-}
-
-interface Task2Data {
-  type: "task2";
-  essayType: string;
-  topic: string;
-  prompt: string;
-  sampleAnswer: string;
-  wordCount: number;
-  bandScore: string;
-  examinerComments: string;
+interface WritingTest {
+  id: string;
+  testTitle: string;
+  examType: string;
+  difficulty: string;
+  imageUrl: string | null;
+  promptText: string | null;
+  task1Question: string;
+  task2Question: string;
+  modelAnswer: string;
+  timeLimit: number;
 }
 
 export default function WritingPractice() {
-  const [selectedTask, setSelectedTask] = useState<TaskType>("task1");
-  const [task1Type, setTask1Type] = useState<Task1Type>("bar");
-  const [difficulty, setDifficulty] = useState<Difficulty>("6.5");
-  const [customTopic, setCustomTopic] = useState("");
+  const router = useRouter();
+  const { toast } = useToast();
+  
+  const [testData, setTestData] = useState<WritingTest | null>(null);
   const [userAnswer, setUserAnswer] = useState("");
-  const [showSample, setShowSample] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationError, setGenerationError] = useState<string | null>(null);
-  const [task1Data, setTask1Data] = useState<Task1Data | null>(null);
-  const [task2Data, setTask2Data] = useState<Task2Data | null>(null);
-  const [imageCollapsed, setImageCollapsed] = useState(false);
-  const [hasStartedTyping, setHasStartedTyping] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState(1200); // 20 minutes = 1200 seconds
+  const [wordCount, setWordCount] = useState(0);
+  const [showResults, setShowResults] = useState(false);
+  const [score, setScore] = useState<number | null>(null);
 
-  // Check user session - but don't block if not logged in
+  // Fetch test data on component mount
   useEffect(() => {
-    const checkUser = async () => {
+    const fetchTestData = async () => {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        if (error) {
-          console.log("User not logged in (optional):", error.message);
-          setUser(null);
-        } else {
-          setUser(user);
+        setIsLoading(true);
+        setError(null);
+
+        // Extract test ID from URL query parameter
+        const testId = router.query.id as string;
+
+        // Validation: If no ID, redirect back to Dashboard
+        if (!testId) {
+          toast({
+            title: "No test selected",
+            description: "Please select a test first.",
+            variant: "destructive",
+          });
+          router.push("/");
+          return;
         }
+
+        console.log("=== WRITING TEST DEBUG ===");
+        console.log("Test ID from URL:", testId);
+
+        // Fetch test from Supabase using test_id
+        const { data: testPaper, error: fetchError } = await supabase
+          .from("ielts_papers")
+          .select("*")
+          .eq("test_id", testId)
+          .eq("category", "writing")
+          .single();
+
+        if (fetchError) {
+          console.error("Supabase fetch error:", fetchError);
+          setError(`Failed to load test: ${fetchError.message}`);
+          return;
+        }
+
+        if (!testPaper) {
+          setError("Test not found. Please try selecting another test.");
+          return;
+        }
+
+        console.log("Test paper loaded:", testPaper.test_title);
+        console.log("Exam type:", testPaper.exam_type);
+        console.log("Has image URL:", !!testPaper.image_url);
+        console.log("Has prompt text:", !!testPaper.prompt_text);
+
+        // Transform test data
+        const contentJson = testPaper.content_json as any;
+        
+        const transformedTest: WritingTest = {
+          id: testPaper.test_id,
+          testTitle: testPaper.test_title,
+          examType: testPaper.exam_type,
+          difficulty: testPaper.difficulty,
+          imageUrl: testPaper.image_url,
+          promptText: testPaper.prompt_text,
+          task1Question: contentJson?.task1?.question || "Write about the given chart/prompt.",
+          task2Question: contentJson?.task2?.question || "Write an essay on the given topic.",
+          modelAnswer: contentJson?.task1?.modelAnswer || "",
+          timeLimit: 1200, // 20 minutes for Task 1
+        };
+
+        setTestData(transformedTest);
+        setTimeRemaining(transformedTest.timeLimit);
+        setIsLoading(false);
+
       } catch (error) {
-        console.log("Auth check failed (optional):", error);
-        setUser(null);
+        console.error("Unexpected error:", error);
+        setError(`Unexpected error: ${error instanceof Error ? error.message : "Unknown error"}`);
+        setIsLoading(false);
       }
     };
-    checkUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (selectedTask === "task1" && userAnswer.length > 10 && !hasStartedTyping) {
-      setHasStartedTyping(true);
-      setImageCollapsed(true);
+    if (router.isReady) {
+      fetchTestData();
     }
-  }, [userAnswer, selectedTask, hasStartedTyping]);
+  }, [router.isReady, router.query.id, toast, router]);
 
+  // Timer countdown
   useEffect(() => {
-    setUserAnswer("");
-    setShowSample(false);
-    setIsSubmitted(false);
-    setImageCollapsed(false);
-    setHasStartedTyping(false);
-    setTask1Data(null);
-    setTask2Data(null);
-    setGenerationError(null);
-  }, [selectedTask]);
+    if (isLoading || showResults || !testData) return;
 
-  const wordCount = userAnswer.trim().split(/\s+/).filter(word => word.length > 0).length;
-  const minWords = selectedTask === "task1" ? 150 : 250;
-  const meetsRequirement = wordCount >= minWords;
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleAutoSubmit();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-  const toggleImageCollapse = () => {
-    setImageCollapsed(!imageCollapsed);
+    return () => clearInterval(timer);
+  }, [isLoading, showResults, testData]);
+
+  // Word count tracker
+  useEffect(() => {
+    const words = userAnswer.trim().split(/\s+/).filter(word => word.length > 0);
+    setWordCount(words.length);
+  }, [userAnswer]);
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const generateNewTest = async () => {
-    if (!user) {
-      setIsAuthModalOpen(true);
-      return;
-    }
-
-    setIsGenerating(true);
-    setGenerationError(null);
-    setTask1Data(null);
-    setTask2Data(null);
-    setUserAnswer("");
-    setShowSample(false);
-    setIsSubmitted(false);
-
-    try {
-      const response = await fetch("/api/generate-writing-task", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          taskType: selectedTask,
-          topic: customTopic || undefined,
-          difficulty,
-          task1Type: selectedTask === "task1" ? task1Type : undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate test");
-      }
-
-      const data = await response.json();
-
-      if (data.type === "task1") {
-        setTask1Data(data as Task1Data);
-      } else {
-        setTask2Data(data as Task2Data);
-      }
-    } catch (error) {
-      console.error("Error generating test:", error);
-      setGenerationError(error instanceof Error ? error.message : "Failed to generate test. Please try again.");
-    } finally {
-      setIsGenerating(false);
-    }
+  const handleAutoSubmit = () => {
+    toast({
+      title: "Time's up!",
+      description: "Your answer has been automatically submitted.",
+      variant: "default",
+    });
+    handleSubmit();
   };
 
   const handleSubmit = async () => {
-    if (!user) {
-      setIsAuthModalOpen(true);
+    if (wordCount < 150) {
+      toast({
+        title: "Word count too low",
+        description: "Task 1 requires at least 150 words. You have written " + wordCount + " words.",
+        variant: "destructive",
+      });
       return;
     }
 
-    if (!meetsRequirement) {
-      alert(`Please write at least ${minWords} words before submitting.`);
-      return;
-    }
-
-    setIsSubmitted(true);
-
-    const currentTaskData = selectedTask === "task1" ? task1Data : task2Data;
-    let topicToSave = customTopic || "General Writing Practice";
-    
-    if (currentTaskData) {
-      if (selectedTask === "task1") {
-        topicToSave = (currentTaskData as Task1Data).title;
-      } else {
-        topicToSave = (currentTaskData as Task2Data).topic || topicToSave;
-      }
-    }
+    setIsSubmitting(true);
 
     try {
-      await savePracticeAttempt({
-        user_id: user.id,
-        module_type: "writing",
-        test_type: selectedTask,
-        topic: topicToSave,
-        difficulty: difficulty,
-        user_answer: userAnswer,
-        word_count: wordCount,
-        test_data: currentTaskData,
-        completed_at: new Date().toISOString(),
+      // Simple scoring: Check word count and completeness
+      let calculatedScore = 0;
+      
+      // Word count criteria (0-3 points)
+      if (wordCount >= 150 && wordCount < 170) calculatedScore += 1;
+      else if (wordCount >= 170 && wordCount < 200) calculatedScore += 2;
+      else if (wordCount >= 200) calculatedScore += 3;
+
+      // Completeness criteria (0-3 points)
+      if (userAnswer.length > 100) calculatedScore += 1;
+      if (userAnswer.length > 300) calculatedScore += 1;
+      if (userAnswer.length > 500) calculatedScore += 1;
+
+      // Length bonus (0-3 points)
+      if (userAnswer.length > 700) calculatedScore += 1;
+      if (userAnswer.length > 900) calculatedScore += 1;
+      if (userAnswer.length > 1100) calculatedScore += 1;
+
+      setScore(calculatedScore);
+      setShowResults(true);
+
+      toast({
+        title: "Test submitted!",
+        description: "Your writing has been evaluated.",
       });
+
     } catch (error) {
-      console.error("Error saving practice history:", error);
+      console.error("Submit error:", error);
+      toast({
+        title: "Submission failed",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const currentData = selectedTask === "task1" ? task1Data : task2Data;
-  const hasGeneratedTest = currentData !== null;
+  const getBandScore = (score: number): string => {
+    if (score >= 8) return "8.0-9.0";
+    if (score >= 7) return "7.0-7.5";
+    if (score >= 6) return "6.5-7.0";
+    if (score >= 5) return "6.0-6.5";
+    if (score >= 4) return "5.5-6.0";
+    if (score >= 3) return "5.0-5.5";
+    return "4.0-5.0";
+  };
 
-  return (
-    <>
-      <SEO
-        title="Writing Practice - IELTS Practice"
-        description="Practice IELTS Academic Writing Task 1 and Task 2 with AI-generated prompts and model answers"
-      />
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <div className="container mx-auto px-4 py-8 max-w-6xl">
-          <div className="mb-6">
-            <Link href="/">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <ArrowLeft className="w-4 h-4" />
-                Back to Home
-              </Button>
-            </Link>
-          </div>
-
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-3 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg">
-                <PenTool className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                  Writing Practice
-                </h1>
-                <p className="text-gray-600 dark:text-gray-400">
-                  AI-Powered IELTS Academic Writing Tests
-                </p>
-              </div>
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <p className="text-sm text-gray-600 dark:text-gray-400">Loading Writing Task 1...</p>
             </div>
-          </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-          <div className="grid gap-6 md:grid-cols-3 mb-6">
-            <Card className="cursor-pointer transition-all hover:shadow-lg" onClick={() => setSelectedTask("task1")}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Task 1
-                  {selectedTask === "task1" && <Badge>Selected</Badge>}
-                </CardTitle>
-                <CardDescription>
-                  Describe visual information (charts, graphs, diagrams)
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Minimum 150 words • 20 minutes
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-red-600">Error Loading Test</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
+                <p className="text-sm text-red-800 dark:text-red-200">
+                  <strong>Debug Information:</strong>
                 </p>
-              </CardContent>
-            </Card>
-
-            <Card className="cursor-pointer transition-all hover:shadow-lg" onClick={() => setSelectedTask("task2")}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PenTool className="w-5 h-5" />
-                  Task 2
-                  {selectedTask === "task2" && <Badge>Selected</Badge>}
-                </CardTitle>
-                <CardDescription>
-                  Write an essay responding to a point of view or argument
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Minimum 250 words • 40 minutes
+                <p className="text-xs text-red-700 dark:text-red-300 mt-2 font-mono">
+                  {error}
                 </p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 border-2 border-purple-200 dark:border-purple-800">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-purple-600" />
-                  AI Generation
-                </CardTitle>
-                <CardDescription>
-                  Cambridge-standard tests powered by AI
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Unique tests • Model answers • Band scores
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-purple-600" />
-                Generate New {selectedTask === "task1" ? "Task 1" : "Task 2"} Test
-              </CardTitle>
-              <CardDescription>
-                Create a unique Cambridge-standard IELTS writing test with AI
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
-                {selectedTask === "task1" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="chart-type">Chart Type</Label>
-                    <Select value={task1Type} onValueChange={(value) => setTask1Type(value as Task1Type)}>
-                      <SelectTrigger id="chart-type">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="bar">Bar Chart</SelectItem>
-                        <SelectItem value="line">Line Graph</SelectItem>
-                        <SelectItem value="pie">Pie Chart</SelectItem>
-                        <SelectItem value="table">Table</SelectItem>
-                        <SelectItem value="process">Process Diagram</SelectItem>
-                        <SelectItem value="map">Map</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="difficulty">Target Band Score</Label>
-                  <Select value={difficulty} onValueChange={(value) => setDifficulty(value as Difficulty)}>
-                    <SelectTrigger id="difficulty">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5.5">Band 5.5</SelectItem>
-                      <SelectItem value="6.0">Band 6.0</SelectItem>
-                      <SelectItem value="6.5">Band 6.5</SelectItem>
-                      <SelectItem value="7.0">Band 7.0</SelectItem>
-                      <SelectItem value="7.5">Band 7.5</SelectItem>
-                      <SelectItem value="8.0">Band 8.0</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="topic">Topic (Optional)</Label>
-                  <input
-                    id="topic"
-                    type="text"
-                    placeholder={selectedTask === "task1" ? "e.g., Energy consumption" : "e.g., Education, Technology"}
-                    value={customTopic}
-                    onChange={(e) => setCustomTopic(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
-                  />
-                </div>
               </div>
-
-              <Button
-                onClick={generateNewTest}
-                disabled={isGenerating}
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                size="lg"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Generating Cambridge-Standard Test...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5 mr-2" />
-                    Generate New Test
-                  </>
-                )}
+              <Button onClick={() => router.push("/")} className="w-full">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Dashboard
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-              {generationError && (
-                <Alert variant="destructive">
-                  <AlertCircle className="w-4 h-4" />
-                  <AlertDescription>{generationError}</AlertDescription>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-
-          {hasGeneratedTest && (
-            <div className="space-y-6">
-              {selectedTask === "task1" && task1Data && (
-                <>
-                  {imageCollapsed ? (
-                    <Card 
-                      className="cursor-pointer transition-all hover:bg-blue-100 dark:hover:bg-blue-900/30 border-2 border-dashed border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/20"
-                      onClick={toggleImageCollapse}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-4 group">
-                          <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center">
-                            <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-blue-900 dark:text-blue-100">Chart Minimized</h3>
-                            <p className="text-sm text-blue-700 dark:text-blue-300">
-                              Tap to expand and view the data visualization
-                            </p>
-                          </div>
-                          <ChevronDown className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle>Reference Chart</CardTitle>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={toggleImageCollapse}
-                          className="gap-2"
-                        >
-                          <Minimize2 className="w-4 h-4" />
-                          Minimize
-                        </Button>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                          <div className="bg-white dark:bg-gray-800 p-6">
-                            <h3 className="text-xl font-bold text-center mb-4">{task1Data.title}</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
-                              {task1Data.description}
-                            </p>
-                            <div className="h-64 flex items-center justify-center bg-gray-50 dark:bg-gray-900 rounded">
-                              <p className="text-gray-500 dark:text-gray-400">
-                                {task1Data.chartType.charAt(0).toUpperCase() + task1Data.chartType.slice(1)} chart visualization would appear here
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        {hasStartedTyping && (
-                          <Alert>
-                            <AlertCircle className="w-4 h-4" />
-                            <AlertDescription>
-                              <strong>Tip:</strong> Click "Minimize" above to give your writing area more space. You can always expand it again.
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Task Instructions</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                        {task1Data.taskPrompt}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </>
-              )}
-
-              {selectedTask === "task2" && task2Data && (
+  // Results view
+  if (showResults && testData && score !== null) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-2xl">Test Complete!</CardTitle>
+                  <CardDescription>{testData.testTitle}</CardDescription>
+                </div>
+                <CheckCircle2 className="h-12 w-12 text-green-600" />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
                   <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle>Essay Question</CardTitle>
-                      <div className="flex gap-2">
-                        <Badge variant="outline">{task2Data.essayType}</Badge>
-                        <Badge>Band {task2Data.bandScore}</Badge>
-                      </div>
-                    </div>
+                    <CardTitle className="text-sm">Score</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="mb-4">
-                      <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">Topic:</span>
-                      <span className="ml-2 text-gray-800 dark:text-gray-200">{task2Data.topic}</span>
-                    </div>
-                    <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                      {task2Data.prompt}
+                    <p className="text-3xl font-bold text-blue-600">{score}/9</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Word Count</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold text-green-600">{wordCount}</p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      {wordCount >= 150 ? "✓ Meets requirement" : "✗ Below 150 words"}
                     </p>
                   </CardContent>
                 </Card>
-              )}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Estimated Band Score</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold text-purple-600">{getBandScore(score)}</p>
+                  </CardContent>
+                </Card>
+              </div>
 
-              <Card>
+              <Card className="bg-blue-50 dark:bg-blue-900/20">
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>Your Answer</span>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={meetsRequirement ? "default" : "secondary"}>
-                        {wordCount} / {minWords} words
-                      </Badge>
-                      {meetsRequirement && <CheckCircle2 className="w-5 h-5 text-green-500" />}
-                    </div>
-                  </CardTitle>
-                  <CardDescription>
-                    Write your response below. Aim for {selectedTask === "task1" ? "150-180" : "250-300"} words.
-                  </CardDescription>
+                  <CardTitle className="text-lg">Your Answer</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Textarea
-                    placeholder="Start writing your answer here..."
-                    value={userAnswer}
-                    onChange={(e) => setUserAnswer(e.target.value)}
-                    className="min-h-[300px] text-base"
-                    disabled={isSubmitted}
-                  />
-                  <div className="flex items-center gap-2 mt-4">
-                    <Clock className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      Suggested time: {selectedTask === "task1" ? "20" : "40"} minutes
-                    </span>
+                  <div className="bg-white dark:bg-gray-800 p-4 rounded-lg max-h-64 overflow-y-auto">
+                    <p className="text-sm whitespace-pre-wrap">{userAnswer}</p>
                   </div>
                 </CardContent>
               </Card>
 
-              <div className="flex gap-4">
-                <Button
-                  onClick={handleSubmit}
-                  disabled={isSubmitted || !meetsRequirement}
-                  className="flex-1"
-                  size="lg"
-                >
-                  {isSubmitted ? "Submitted" : "Submit Answer"}
-                </Button>
-                <Button
-                  onClick={() => setShowSample(!showSample)}
-                  variant="outline"
-                  className="flex-1"
-                  size="lg"
-                >
-                  {showSample ? "Hide" : "View"} Model Answer
-                </Button>
-              </div>
-
-              {isSubmitted && (
-                <Alert className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
-                  <CheckCircle2 className="w-4 h-4 text-green-600" />
-                  <AlertDescription className="text-green-800 dark:text-green-200">
-                    <strong>Answer submitted!</strong> Your response has been saved to your practice history.
-                    Review the model answer below to compare your writing.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {showSample && currentData && (
-                <Card className="border-2 border-purple-200 dark:border-purple-800">
+              {testData.modelAnswer && (
+                <Card className="bg-green-50 dark:bg-green-900/20">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-purple-600" />
-                      Model Answer (Band {currentData.bandScore})
-                    </CardTitle>
-                    <CardDescription>
-                      {currentData.wordCount} words
-                    </CardDescription>
+                    <CardTitle className="text-lg">Model Answer</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="p-4 bg-purple-50 dark:bg-purple-950/20 rounded-lg">
-                      <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                        {currentData.sampleAnswer}
-                      </p>
-                    </div>
-                    <div className="border-t pt-4">
-                      <h4 className="font-semibold mb-2">Examiner Comments:</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-                        {currentData.examinerComments}
-                      </p>
+                  <CardContent>
+                    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg max-h-64 overflow-y-auto">
+                      <p className="text-sm whitespace-pre-wrap">{testData.modelAnswer}</p>
                     </div>
                   </CardContent>
                 </Card>
               )}
-            </div>
-          )}
 
-          {!hasGeneratedTest && !isGenerating && (
-            <Card className="border-2 border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <Sparkles className="w-16 h-16 text-purple-400 mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Ready to Practice?</h3>
-                <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-md">
-                  Click "Generate New Test" above to create a unique Cambridge-standard IELTS writing test.
-                  Each test includes detailed model answers and examiner feedback.
-                </p>
-                <Badge variant="outline">AI-Powered • Instant Generation • Band Score Analysis</Badge>
-              </CardContent>
-            </Card>
-          )}
+              <div className="flex gap-4">
+                <Button onClick={() => router.push("/")} className="flex-1">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Dashboard
+                </Button>
+                <Button onClick={() => router.reload()} variant="outline" className="flex-1">
+                  Try Another Test
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
+    );
+  }
 
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onSuccess={() => {
-          const checkUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
-          };
-          checkUser();
-        }}
-      />
-    </>
+  // Main test view
+  if (!testData) return null;
+
+  const isAcademic = testData.examType === "academic";
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
+      <div className="max-w-7xl mx-auto space-y-4">
+        {/* Header */}
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <CardTitle className="text-2xl">{testData.testTitle}</CardTitle>
+                <CardDescription className="mt-2">
+                  <Badge variant="outline" className="mr-2">
+                    {testData.examType === "academic" ? "Academic" : "General Training"}
+                  </Badge>
+                  <Badge variant="outline" className="mr-2">
+                    Task 1
+                  </Badge>
+                  <Badge variant="outline">
+                    {testData.difficulty.charAt(0).toUpperCase() + testData.difficulty.slice(1)}
+                  </Badge>
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-gray-600" />
+                  <span className="text-2xl font-bold text-blue-600">{formatTime(timeRemaining)}</span>
+                </div>
+                <Button onClick={() => router.push("/")} variant="outline" size="sm">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-600">Time Progress</span>
+                <span className="text-sm text-gray-600">
+                  {Math.round((1 - timeRemaining / 1200) * 100)}%
+                </span>
+              </div>
+              <Progress value={(1 - timeRemaining / 1200) * 100} className="h-2" />
+            </div>
+          </CardHeader>
+        </Card>
+
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Left Side: Question and Image/Prompt */}
+          <Card className="h-fit">
+            <CardHeader>
+              <CardTitle>Task 1 Question</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Question Text */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <p className="text-sm font-medium">{testData.task1Question}</p>
+              </div>
+
+              {/* Academic: Display Chart Image */}
+              {isAcademic && testData.imageUrl && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Study the chart below:
+                  </p>
+                  <div className="border-2 border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white">
+                    <img
+                      src={testData.imageUrl}
+                      alt="IELTS Task 1 Chart"
+                      className="w-full h-auto object-contain"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* General: Display Letter Prompt */}
+              {!isAcademic && testData.promptText && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Letter Situation:
+                  </p>
+                  <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg border-l-4 border-amber-500">
+                    <p className="text-sm whitespace-pre-line">{testData.promptText}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Requirements */}
+              <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg space-y-2">
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Requirements:
+                </p>
+                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+                  <li>Write at least <strong>150 words</strong></li>
+                  <li>Complete the task in <strong>20 minutes</strong></li>
+                  {isAcademic ? (
+                    <>
+                      <li>Summarize the key features of the chart</li>
+                      <li>Make relevant comparisons where appropriate</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>Address all three bullet points</li>
+                      <li>Use an appropriate letter format</li>
+                    </>
+                  )}
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Right Side: Writing Area */}
+          <Card className="h-fit">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Your Answer</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Badge variant={wordCount >= 150 ? "default" : "destructive"}>
+                    {wordCount} words
+                  </Badge>
+                  {wordCount >= 150 && <CheckCircle2 className="h-5 w-5 text-green-600" />}
+                </div>
+              </div>
+              <CardDescription>
+                {wordCount < 150
+                  ? `You need ${150 - wordCount} more words to meet the minimum requirement.`
+                  : "You have met the minimum word count requirement."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Textarea
+                placeholder={
+                  isAcademic
+                    ? "Begin your response here. Describe the main features of the chart and make comparisons where relevant..."
+                    : "Begin your letter here. Remember to use an appropriate greeting and closing..."
+                }
+                value={userAnswer}
+                onChange={(e) => setUserAnswer(e.target.value)}
+                className="min-h-[500px] resize-none font-mono text-sm"
+              />
+
+              <div className="flex gap-4">
+                <Button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || wordCount < 150}
+                  className="flex-1"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Submit Test
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <p className="text-xs text-gray-500 text-center">
+                Your test will be automatically submitted when the timer reaches zero.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
   );
 }

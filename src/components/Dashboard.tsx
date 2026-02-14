@@ -4,8 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, PenTool, Headphones, Mic, Clock, Target, TrendingUp, Calendar } from "lucide-react";
+import { BookOpen, PenTool, Headphones, Mic, Clock, Target, TrendingUp, Calendar, Upload, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { upsertMultipleTests, type LocalTestData } from "@/services/testSyncService";
 
 type ModuleType = "reading" | "writing" | "listening" | "speaking";
 type ExamType = "academic" | "general";
@@ -69,8 +72,15 @@ export function Dashboard() {
     lastPracticeDate: null
   });
 
+  // Admin sync state
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
+  const [syncStatus, setSyncStatus] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+
   useEffect(() => {
     loadStats();
+    checkAdminStatus();
   }, []);
 
   useEffect(() => {
@@ -78,6 +88,26 @@ export function Dashboard() {
       loadAvailableTests();
     }
   }, [selectedModule, examType, difficulty]);
+
+  const checkAdminStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", user.id)
+        .single();
+
+      // Set admin status (you can customize this logic)
+      // For now, checking if email contains "admin" or specific email
+      const adminEmails = ["admin@ielts.com", "dev@ielts.com"];
+      setIsAdmin(adminEmails.includes(profile?.email || "") || profile?.email?.includes("admin"));
+    } catch (error) {
+      console.error("Error checking admin status:", error);
+    }
+  };
 
   const loadStats = async () => {
     try {
@@ -92,7 +122,6 @@ export function Dashboard() {
 
       if (error) throw error;
 
-      // Cast data to any[] to bypass type checking for now
       const historyData = data as any[];
 
       if (historyData && historyData.length > 0) {
@@ -113,11 +142,6 @@ export function Dashboard() {
   const loadAvailableTests = async () => {
     if (!selectedModule) return;
     
-    console.log("=== LOAD TESTS DEBUG ===");
-    console.log("1. Selected module:", selectedModule);
-    console.log("2. Exam type:", examType);
-    console.log("3. Difficulty:", difficulty);
-    
     setIsLoadingTests(true);
     setAvailableTests([]);
     setSelectedTestId("");
@@ -131,18 +155,11 @@ export function Dashboard() {
         .eq("difficulty", difficulty)
         .order("test_title");
 
-      console.log("4. Query result:", { data, error });
-
-      if (error) {
-        console.error("5. Database error:", error);
-        throw error;
-      }
+      if (error) throw error;
 
       const testsData = data as any[];
-      console.log("6. Tests data:", testsData);
 
       if (!testsData || testsData.length === 0) {
-        console.log("7. No tests found");
         toast({
           title: "No tests available",
           description: `No ${difficulty} ${examType} ${selectedModule} tests found.`,
@@ -151,17 +168,14 @@ export function Dashboard() {
         return;
       }
 
-      console.log("8. Setting available tests:", testsData.length);
       setAvailableTests(testsData);
       
-      // Auto-select first test
       if (testsData.length > 0) {
-        console.log("9. Auto-selecting first test:", testsData[0].test_id);
         setSelectedTestId(testsData[0].test_id);
       }
 
     } catch (error: any) {
-      console.error("10. Error loading tests:", error);
+      console.error("Error loading tests:", error);
       toast({
         title: "Error loading tests",
         description: error.message || "Failed to load available tests",
@@ -169,7 +183,6 @@ export function Dashboard() {
       });
     } finally {
       setIsLoadingTests(false);
-      console.log("11. Loading complete");
     }
   };
 
@@ -183,7 +196,6 @@ export function Dashboard() {
       return;
     }
 
-    // Navigate to the appropriate practice page with test ID as query parameter
     const practiceRoutes = {
       reading: "/practice/reading",
       writing: "/practice/writing",
@@ -191,10 +203,147 @@ export function Dashboard() {
       speaking: "/practice/speaking",
     };
 
-    const route = practiceRoutes[selectedModule];
+    const route = practiceRoutes[selectedModule!];
     if (route) {
-      // Pass the test ID as a query parameter
       router.push(`${route}?id=${selectedTestId}`);
+    }
+  };
+
+  const handlePushTestsToSupabase = async () => {
+    setIsSyncing(true);
+    setSyncProgress(0);
+    setSyncStatus("Preparing tests...");
+
+    try {
+      // Sample test data - Replace with your actual test data source
+      const sampleTests: LocalTestData[] = [
+        {
+          test_title: "Academic Reading Test 1 - Climate Change",
+          category: "reading",
+          exam_type: "academic",
+          difficulty: "medium",
+          content_json: {
+            passages: [
+              {
+                title: "The Impact of Climate Change on Global Agriculture",
+                text: "Climate change is one of the most pressing challenges facing humanity today. Rising temperatures, changing precipitation patterns, and increased frequency of extreme weather events are already affecting agricultural productivity worldwide...",
+                questions: [
+                  {
+                    type: "true_false_not_given",
+                    question: "Climate change affects agricultural productivity globally.",
+                    answer: "TRUE"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          test_title: "Academic Writing Task 2 - Technology in Education",
+          category: "writing",
+          exam_type: "academic",
+          difficulty: "medium",
+          content_json: {
+            task_type: "task_2",
+            prompt: "Some people believe that technology has made children less creative than they were in the past. To what extent do you agree or disagree?",
+            word_count: 250,
+            time_limit: 40
+          }
+        },
+        {
+          test_title: "Academic Listening Test 1 - University Life",
+          category: "listening",
+          exam_type: "academic",
+          difficulty: "medium",
+          content_json: {
+            sections: [
+              {
+                section_number: 1,
+                context: "A conversation between a student and an accommodation officer",
+                questions: [
+                  {
+                    type: "form_completion",
+                    question: "Student's name: Sarah ______"
+                  }
+                ]
+              }
+            ]
+          },
+          audio_url: "https://example.com/audio/listening-test-1.mp3"
+        },
+        {
+          test_title: "Academic Speaking Test 1 - Personal Experience",
+          category: "speaking",
+          exam_type: "academic",
+          difficulty: "medium",
+          content_json: {
+            part_1: {
+              topic: "Daily Routine",
+              questions: [
+                "What time do you usually wake up?",
+                "Do you prefer morning or evening activities?"
+              ]
+            },
+            part_2: {
+              topic_card: "Describe a memorable journey you have made",
+              prompts: [
+                "Where you went",
+                "When you went there",
+                "Who you went with",
+                "Why it was memorable"
+              ]
+            },
+            part_3: {
+              topic: "Travel and Tourism",
+              questions: [
+                "How has tourism changed in your country?",
+                "What are the benefits of international travel?"
+              ]
+            }
+          }
+        }
+      ];
+
+      const result = await upsertMultipleTests(
+        sampleTests,
+        (current, total, testTitle) => {
+          const progress = Math.round((current / total) * 100);
+          setSyncProgress(progress);
+          setSyncStatus(`Syncing: ${testTitle} (${current}/${total})`);
+        }
+      );
+
+      if (result.failed > 0) {
+        toast({
+          title: "Sync completed with errors",
+          description: `${result.successful} succeeded, ${result.failed} failed`,
+          variant: "destructive"
+        });
+        console.error("Failed tests:", result.errors);
+      } else {
+        toast({
+          title: "Sync successful!",
+          description: `Successfully synced ${result.successful} tests to Supabase`,
+        });
+      }
+
+      setSyncStatus(`Complete: ${result.successful} synced, ${result.failed} failed`);
+      
+      // Reload available tests if a module is selected
+      if (selectedModule) {
+        await loadAvailableTests();
+      }
+
+    } catch (error: any) {
+      console.error("Error syncing tests:", error);
+      toast({
+        title: "Sync failed",
+        description: error.message || "Failed to sync tests to Supabase",
+        variant: "destructive"
+      });
+      setSyncStatus("Sync failed");
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -217,6 +366,50 @@ export function Dashboard() {
             Choose a module to begin your practice session
           </p>
         </div>
+
+        {/* Admin Tools Section */}
+        {isAdmin && (
+          <Card className="border-2 border-orange-200 dark:border-orange-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-orange-500" />
+                Admin Tools
+              </CardTitle>
+              <CardDescription>
+                Manage and sync IELTS test content to Supabase database
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button
+                onClick={handlePushTestsToSupabase}
+                disabled={isSyncing}
+                variant="outline"
+                className="w-full"
+                size="lg"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {isSyncing ? "Syncing..." : "Push Tests to Supabase"}
+              </Button>
+
+              {isSyncing && (
+                <div className="space-y-2">
+                  <Progress value={syncProgress} className="w-full" />
+                  <p className="text-sm text-slate-600 dark:text-slate-400 text-center">
+                    {syncStatus}
+                  </p>
+                </div>
+              )}
+
+              {syncStatus && !isSyncing && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Sync Status</AlertTitle>
+                  <AlertDescription>{syncStatus}</AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

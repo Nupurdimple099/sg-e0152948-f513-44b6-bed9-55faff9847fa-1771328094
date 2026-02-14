@@ -23,6 +23,8 @@ export type Database = {
           created_at: string | null
           difficulty: string
           exam_type: string
+          image_url: string | null
+          prompt_text: string | null
           test_id: string
           test_title: string | null
           updated_at: string | null
@@ -34,6 +36,8 @@ export type Database = {
           created_at?: string | null
           difficulty: string
           exam_type: string
+          image_url?: string | null
+          prompt_text?: string | null
           test_id?: string
           test_title?: string | null
           updated_at?: string | null
@@ -45,6 +49,8 @@ export type Database = {
           created_at?: string | null
           difficulty?: string
           exam_type?: string
+          image_url?: string | null
+          prompt_text?: string | null
           test_id?: string
           test_title?: string | null
           updated_at?: string | null
