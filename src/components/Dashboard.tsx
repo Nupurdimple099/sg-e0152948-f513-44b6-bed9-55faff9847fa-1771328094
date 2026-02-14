@@ -31,6 +31,7 @@ import {
 import { getStudyStreak, getBandScoreHistory, getRecentPractice } from "@/services/practiceHistoryService";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { getIELTSPapers } from "@/services/ieltsPapersService";
 
 ChartJS.register(
   CategoryScale,
@@ -77,10 +78,38 @@ export function Dashboard({ userId }: DashboardProps) {
   const [examType, setExamType] = useState<ExamType>("academic");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [selectedModule, setSelectedModule] = useState<ModuleType | null>(null);
+  
+  // Reading test selection
+  const [availableReadingTests, setAvailableReadingTests] = useState<any[]>([]);
+  const [selectedReadingTest, setSelectedReadingTest] = useState<string>("");
+  const [isLoadingTests, setIsLoadingTests] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
   }, [userId]);
+
+  useEffect(() => {
+    // Load reading tests when filters change
+    loadReadingTests();
+  }, [examType, difficulty]);
+
+  const loadReadingTests = async () => {
+    setIsLoadingTests(true);
+    try {
+      const tests = await getIELTSPapers({
+        category: "reading",
+        exam_type: examType,
+        difficulty: difficulty
+      });
+      setAvailableReadingTests(tests);
+      setSelectedReadingTest(""); // Reset selection
+    } catch (error) {
+      console.error("Error loading reading tests:", error);
+      setAvailableReadingTests([]);
+    } finally {
+      setIsLoadingTests(false);
+    }
+  };
 
   const loadDashboardData = async () => {
     setIsLoading(true);
@@ -102,15 +131,27 @@ export function Dashboard({ userId }: DashboardProps) {
   };
 
   const handleStartPractice = (module: ModuleType) => {
-    // Navigate to the test session page with filters
-    router.push({
-      pathname: "/test-session",
-      query: {
-        module,
-        examType,
-        difficulty
-      }
-    });
+    if (module === "reading" && selectedReadingTest) {
+      // Navigate to reading with specific test ID
+      router.push({
+        pathname: "/practice/reading",
+        query: { 
+          testId: selectedReadingTest,
+          examType,
+          difficulty
+        }
+      });
+    } else {
+      // Navigate to test session for other modules
+      router.push({
+        pathname: "/test-session",
+        query: {
+          module,
+          examType,
+          difficulty
+        }
+      });
+    }
   };
 
   // Prepare chart data
@@ -421,8 +462,8 @@ export function Dashboard({ userId }: DashboardProps) {
 
         {/* Practice Modules Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Reading Card */}
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer border-2 border-blue-200 dark:border-blue-800">
+          {/* Reading Card - WITH TEST SELECTION */}
+          <Card className="hover:shadow-lg transition-shadow border-2 border-blue-200 dark:border-blue-800">
             <CardContent className="p-6">
               <div className="flex flex-col items-center text-center space-y-4">
                 <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
@@ -431,15 +472,46 @@ export function Dashboard({ userId }: DashboardProps) {
                 <div>
                   <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100">Reading</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Practice with passages and questions
+                    3 passages with 40 questions
                   </p>
                 </div>
+
+                {/* Test Selection Dropdown */}
+                <div className="w-full space-y-2">
+                  <Select 
+                    value={selectedReadingTest} 
+                    onValueChange={setSelectedReadingTest}
+                    disabled={isLoadingTests || availableReadingTests.length === 0}
+                  >
+                    <SelectTrigger className="w-full text-sm">
+                      <SelectValue placeholder={
+                        isLoadingTests ? "Loading tests..." : 
+                        availableReadingTests.length === 0 ? "No tests available" :
+                        "Select a test"
+                      } />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableReadingTests.map((test, index) => (
+                        <SelectItem key={test.test_id} value={test.test_id}>
+                          {test.content_json?.test_title || `Test ${index + 1}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {availableReadingTests.length > 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {availableReadingTests.length} test{availableReadingTests.length !== 1 ? 's' : ''} available
+                    </p>
+                  )}
+                </div>
+
                 <Button 
                   className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
                   onClick={() => handleStartPractice("reading")}
+                  disabled={!selectedReadingTest || isLoadingTests}
                 >
                   <Play className="w-4 h-4 mr-2" />
-                  Generate Test
+                  {selectedReadingTest ? "Start Test" : "Select Test First"}
                 </Button>
               </div>
             </CardContent>

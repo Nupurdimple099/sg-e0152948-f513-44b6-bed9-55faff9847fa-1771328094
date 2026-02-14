@@ -64,12 +64,29 @@ export default function WritingPractice() {
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
+  // Check user session - but don't block if not logged in
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) {
+          console.log("User not logged in (optional):", error.message);
+          setUser(null);
+        } else {
+          setUser(user);
+        }
+      } catch (error) {
+        console.log("Auth check failed (optional):", error);
+        setUser(null);
+      }
     };
     checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {

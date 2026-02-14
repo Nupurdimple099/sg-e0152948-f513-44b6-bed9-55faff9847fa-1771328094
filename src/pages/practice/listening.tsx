@@ -69,15 +69,29 @@ Section 4: You will hear a lecture about urban planning and sustainable cities.
 
 Lecturer: Today, we'll explore how modern urban planning incorporates sustainability principles. Successful sustainable cities balance economic growth, environmental protection, and social equity. Let's examine three key strategies that cities worldwide are implementing...`;
 
-  // Fetch user session
+  // Check user session - but don't block if not logged in
   useEffect(() => {
-    async function fetchUser() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUserId(session.user.id);
+    const checkUser = async () => {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) {
+          console.log("User not logged in (optional):", error.message);
+          setUserId(null);
+        } else {
+          setUserId(user.id);
+        }
+      } catch (error) {
+        console.log("Auth check failed (optional):", error);
+        setUserId(null);
       }
-    }
-    fetchUser();
+    };
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // Fetch listening tests
