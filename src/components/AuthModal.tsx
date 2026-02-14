@@ -28,6 +28,11 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     setIsLoading(true);
     setMessage(null);
 
+    console.log("=== SIGN UP DEBUG ===");
+    console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log("Supabase Key (first 20 chars):", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 20));
+    console.log("Email:", email);
+
     try {
       const { data, error } = await supabase.auth.signUp({
         email: email,
@@ -39,7 +44,17 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
         },
       });
 
-      if (error) throw error;
+      console.log("Sign up response:", { data, error });
+
+      if (error) {
+        console.error("Sign up error details:", {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+          stack: error.stack
+        });
+        throw error;
+      }
 
       if (data.user) {
         // Create profile
@@ -61,6 +76,13 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
         setFullName("");
       }
     } catch (error: any) {
+      console.error("Sign up catch block error:", {
+        message: error?.message,
+        status: error?.status,
+        name: error?.name,
+        code: error?.code,
+        details: error
+      });
       setMessage({ type: "error", text: error.message || "Failed to create account" });
     } finally {
       setIsLoading(false);
@@ -72,13 +94,28 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     setIsLoading(true);
     setMessage(null);
 
+    console.log("=== SIGN IN DEBUG ===");
+    console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log("Supabase Key (first 20 chars):", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 20));
+    console.log("Email:", email);
+
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: email,
         password: password,
       });
 
-      if (error) throw error;
+      console.log("Sign in response:", { error });
+
+      if (error) {
+        console.error("Sign in error details:", {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+          stack: error.stack
+        });
+        throw error;
+      }
 
       setMessage({ type: "success", text: "Signed in successfully!" });
       setTimeout(() => {
@@ -86,6 +123,13 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
         onClose();
       }, 1000);
     } catch (error: any) {
+      console.error("Sign in catch block error:", {
+        message: error?.message,
+        status: error?.status,
+        name: error?.name,
+        code: error?.code,
+        details: error
+      });
       setMessage({ type: "error", text: error.message || "Failed to sign in" });
     } finally {
       setIsLoading(false);

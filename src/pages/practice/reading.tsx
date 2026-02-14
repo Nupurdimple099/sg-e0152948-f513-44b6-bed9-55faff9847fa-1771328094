@@ -1,319 +1,106 @@
+import { useRouter } from "next/router";
+import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Clock, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
-import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/router";
-import { supabase } from "@/integrations/supabase/client";
-import { savePracticeAttempt } from "@/services/practiceHistoryService";
-import { useToast } from "@/hooks/use-toast";
-
-interface Question {
-  id: number;
-  type: "multiple_choice" | "true_false_not_given" | "matching_headings" | "sentence_completion" | "matching_information";
-  question: string;
-  options?: string[];
-  correctAnswer: string;
-  passage?: number;
-}
-
-interface Passage {
-  title: string;
-  content: string;
-  wordCount: number;
-}
-
-interface ReadingTest {
-  test_id: string;
-  test_title: string;
-  exam_type: string;
-  difficulty: string;
-  passages: Passage[];
-  questions: Question[];
-  timeLimit: number;
-}
-
-// Add interface for the raw JSON content from database
-interface TestContent {
-  test_title?: string;
-  passages?: Passage[];
-  questions?: Question[];
-  timeLimit?: number;
-}
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { ArrowLeft, Clock, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { fetchReadingTest, type ReadingTest, type ReadingPassage, type ReadingQuestion } from "@/services/ieltsPapersService";
 
 export default function ReadingPractice() {
   const router = useRouter();
   const { testId } = router.query;
-  const { toast } = useToast();
-  
+
+  // State management
   const [test, setTest] = useState<ReadingTest | null>(null);
+  const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [score, setScore] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
-  
-  // Test state
-  const [hasStarted, setHasStarted] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(3600);
-  const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [score, setScore] = useState<number | null>(null);
-  
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState(3600); // 60 minutes
+  const [currentPassage, setCurrentPassage] = useState(0);
 
-  // Simplified auth check - no network calls on load
+  // Load test on mount
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  // Load test data immediately when testId is available
-  useEffect(() => {
-    console.log("=== READING PRACTICE useEffect ===");
-    console.log("1. router.isReady:", router.isReady);
-    console.log("2. router.query:", router.query);
-    
-    if (!router.isReady) {
-      console.log("3. Router not ready, waiting...");
-      return;
-    }
-
-    const testId = router.query.testId as string;
-    console.log("4. Extracted testId:", testId);
-
-    if (!testId) {
-      console.log("5. No testId in query, showing error");
-      setError("No test ID provided. Please select a test from the dashboard.");
+    if (!testId || typeof testId !== "string") {
+      console.error("Invalid testId:", testId);
+      setError("No test ID provided");
       setIsLoading(false);
       return;
     }
 
-    console.log("6. Loading test with testId:", testId);
     loadTest(testId);
-  }, [router.isReady, router.query.testId]);
+  }, [testId]);
 
   // Timer countdown
   useEffect(() => {
-    if (hasStarted && !isSubmitted && timeRemaining > 0) {
-      timerRef.current = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1) {
-            handleSubmit();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+    if (isSubmitted || !test) return;
 
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [hasStarted, isSubmitted, timeRemaining]);
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 0) {
+          clearInterval(timer);
+          handleSubmit();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-  const loadTest = async (testId: string) => {
-    console.log("=== LOAD TEST START ===");
-    console.log("1. testId:", testId);
-    
+    return () => clearInterval(timer);
+  }, [test, isSubmitted]);
+
+  const loadTest = async (id: string) => {
+    console.log("=== LOADING READING TEST ===");
     setIsLoading(true);
     setError(null);
 
-    try {
-      console.log("2. Calling getIELTSPapers...");
-      
-      // Query by test_id directly
-      const { data, error: queryError } = await supabase
-        .from('ielts_papers')
-        .select('*')
-        .eq('test_id', testId)
-        .single();
+    const { data, error: fetchError } = await fetchReadingTest(id);
 
-      console.log("3. Query result:", { data, error: queryError });
-
-      if (queryError) {
-        console.error("4. Query error:", queryError);
-        throw new Error(`Database error: ${queryError.message}`);
-      }
-
-      if (!data) {
-        console.log("5. No data returned");
-        throw new Error("Test not found in database");
-      }
-
-      console.log("6. Test data received:", {
-        test_id: data.test_id,
-        exam_type: data.exam_type,
-        difficulty: data.difficulty,
-        has_content_json: !!data.content_json
-      });
-
-      if (!data.content_json) {
-        console.log("7. No content_json found");
-        throw new Error("Test content is missing");
-      }
-
-      console.log("8. Parsing content_json...");
-      // Cast the JSON content to our interface
-      const content = data.content_json as unknown as TestContent;
-      
-      console.log("9. Content structure:", {
-        has_test_title: !!content.test_title,
-        has_passages: !!content.passages,
-        passages_length: content.passages?.length,
-        has_questions: !!content.questions,
-        questions_length: content.questions?.length
-      });
-
-      if (!content.passages || !Array.isArray(content.passages)) {
-        console.log("10. Invalid passages structure");
-        throw new Error("Test passages are missing or invalid");
-      }
-
-      if (!content.questions || !Array.isArray(content.questions)) {
-        console.log("11. Invalid questions structure");
-        throw new Error("Test questions are missing or invalid");
-      }
-
-      console.log("12. Setting test state...");
-      setTest({
-        test_id: data.test_id,
-        test_title: content.test_title || `Reading Test`,
-        exam_type: data.exam_type,
-        difficulty: data.difficulty,
-        passages: content.passages,
-        questions: content.questions,
-        timeLimit: content.timeLimit || 3600
-      });
-
-      console.log("13. Test loaded successfully!");
-
-    } catch (err) {
-      console.error("14. Error loading test:", err);
-      const errorMessage = err instanceof Error ? err.message : "Failed to load test";
-      setError(errorMessage);
-      console.error("15. Error details:", err);
-    } finally {
-      console.log("16. Setting isLoading to false");
+    if (fetchError) {
+      console.error("Failed to load test:", fetchError);
+      setError(fetchError);
       setIsLoading(false);
+      return;
     }
+
+    if (!data) {
+      setError("Test not found");
+      setIsLoading(false);
+      return;
+    }
+
+    console.log("Test loaded successfully:", data);
+    setTest(data);
+    setTimeRemaining(data.timeLimit || 3600);
+    setIsLoading(false);
   };
 
-  const handleStartTest = () => {
-    setHasStarted(true);
-    toast({
-      title: "Test Started",
-      description: "Good luck! Remember, you have 60 minutes.",
-      duration: 3000,
-    });
-  };
-
-  const handleAnswerChange = (questionId: number, answer: string) => {
-    setUserAnswers(prev => ({
+  const handleAnswerChange = (questionId: string, answer: string) => {
+    setUserAnswers((prev) => ({
       ...prev,
       [questionId]: answer
     }));
   };
 
-  const handleSubmit = async () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+  const handleSubmit = () => {
+    if (!test) return;
 
-    setIsSubmitted(true);
-
-    // Calculate score
     let correctCount = 0;
-    test?.questions.forEach(q => {
-      if (userAnswers[q.id]?.toLowerCase() === q.correctAnswer.toLowerCase()) {
+    test.questions.forEach((question) => {
+      const userAnswer = userAnswers[question.id];
+      if (userAnswer && userAnswer.toLowerCase() === question.correctAnswer.toLowerCase()) {
         correctCount++;
       }
     });
 
-    const totalQuestions = test?.questions.length || 40;
-    const percentage = (correctCount / totalQuestions) * 100;
-    
-    // Convert to band score (simplified mapping)
-    let bandScore = 0;
-    if (percentage >= 90) bandScore = 9.0;
-    else if (percentage >= 87.5) bandScore = 8.5;
-    else if (percentage >= 82.5) bandScore = 8.0;
-    else if (percentage >= 75) bandScore = 7.5;
-    else if (percentage >= 67.5) bandScore = 7.0;
-    else if (percentage >= 60) bandScore = 6.5;
-    else if (percentage >= 52.5) bandScore = 6.0;
-    else if (percentage >= 45) bandScore = 5.5;
-    else if (percentage >= 37.5) bandScore = 5.0;
-    else if (percentage >= 30) bandScore = 4.5;
-    else bandScore = 4.0;
-
-    setScore(bandScore);
-
-    // Save to history
-    const timeTaken = test?.timeLimit ? test.timeLimit - timeRemaining : 0;
-    const minutes = Math.floor(timeTaken / 60);
-    const seconds = timeTaken % 60;
-
-    try {
-      if (user) {
-        await savePracticeAttempt({
-          module_type: "reading",
-          test_type: test?.exam_type || "academic",
-          topic: test?.test_title || "Reading Test",
-          difficulty: test?.difficulty || "medium",
-          band_score: bandScore,
-          is_evaluated: true,
-          duration: `${minutes}m ${seconds}s`,
-          test_data: {
-            test_id: test?.test_id,
-            correct: correctCount,
-            total: totalQuestions,
-            percentage: percentage.toFixed(1)
-          }
-        });
-      } else {
-        // Save to localStorage for non-logged-in users
-        const history = JSON.parse(localStorage.getItem("ielts_practice_history") || "[]");
-        history.unshift({
-          id: Date.now().toString(),
-          module_type: "reading",
-          test_type: test?.exam_type || "academic",
-          topic: test?.test_title || "Reading Test",
-          difficulty: test?.difficulty || "medium",
-          band_score: bandScore,
-          is_evaluated: true,
-          duration: `${minutes}m ${seconds}s`,
-          completed_at: new Date().toISOString(),
-          test_data: {
-            test_id: test?.test_id,
-            correct: correctCount,
-            total: totalQuestions,
-            percentage: percentage.toFixed(1)
-          }
-        });
-        localStorage.setItem("ielts_practice_history", JSON.stringify(history));
-      }
-
-      toast({
-        title: "Test Submitted",
-        description: `You scored Band ${bandScore.toFixed(1)} (${correctCount}/${totalQuestions} correct)`,
-        duration: 5000,
-      });
-    } catch (error) {
-      console.error("Error saving test results:", error);
-    }
-
-    // Scroll to results
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setScore(correctCount);
+    setIsSubmitted(true);
   };
 
   const formatTime = (seconds: number) => {
@@ -322,376 +109,341 @@ export default function ReadingPractice() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const getQuestionTypeLabel = (type: string) => {
-    switch (type) {
-      case "multiple_choice": return "Multiple Choice";
-      case "true_false_not_given": return "True / False / Not Given";
-      case "matching_headings": return "Matching Headings";
-      case "sentence_completion": return "Sentence Completion";
-      case "matching_information": return "Matching Information";
-      default: return type;
-    }
+  const getPassageQuestions = (passage: ReadingPassage) => {
+    if (!test) return [];
+    return test.questions.filter(
+      (q) => q.questionNumber >= passage.questionRange.start && 
+             q.questionNumber <= passage.questionRange.end
+    );
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <SEO title="Loading Test - IELTS Reading" description="Loading your IELTS Reading test" />
-        <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto" />
-          <p className="text-lg text-slate-600">Loading your test...</p>
-        </div>
-      </div>
-    );
-  }
+  const renderQuestion = (question: ReadingQuestion) => {
+    const userAnswer = userAnswers[question.id];
+    const isCorrect = userAnswer?.toLowerCase() === question.correctAnswer.toLowerCase();
 
-  if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <SEO title="Error - IELTS Reading" description="Error loading test" />
-        <Card className="p-8 max-w-md">
-          <div className="text-center space-y-4">
-            <AlertCircle className="w-16 h-16 text-red-500 mx-auto" />
-            <h2 className="text-2xl font-bold text-gray-900">Error Loading Test</h2>
-            <p className="text-gray-600">{error}</p>
-            <Link href="/">
-              <Button>Return to Dashboard</Button>
-            </Link>
+      <div key={question.id} className="mb-6 p-4 border rounded-lg">
+        <div className="flex items-start gap-3">
+          <div className="font-bold text-primary min-w-[2rem]">
+            {question.questionNumber}.
           </div>
-        </Card>
-      </div>
-    );
-  }
+          <div className="flex-1">
+            <p className="font-medium mb-3">{question.questionText}</p>
 
-  if (!test) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <SEO title="Test Not Found - IELTS Reading" description="Test not found" />
-        <Card className="p-8 max-w-md">
-          <div className="text-center space-y-4">
-            <AlertCircle className="w-16 h-16 text-red-500 mx-auto" />
-            <h2 className="text-2xl font-bold text-gray-900">Test Not Found</h2>
-            <p className="text-gray-600">The requested test could not be loaded.</p>
-            <Link href="/">
-              <Button>Return to Dashboard</Button>
-            </Link>
-          </div>
-        </Card>
-      </div>
-    );
-  }
+            {question.type === "true-false-not-given" && (
+              <RadioGroup
+                value={userAnswer || ""}
+                onValueChange={(value) => handleAnswerChange(question.id, value)}
+                disabled={isSubmitted}
+              >
+                <div className="flex items-center space-x-2 mb-2">
+                  <RadioGroupItem value="TRUE" id={`${question.id}-true`} />
+                  <Label htmlFor={`${question.id}-true`}>TRUE</Label>
+                </div>
+                <div className="flex items-center space-x-2 mb-2">
+                  <RadioGroupItem value="FALSE" id={`${question.id}-false`} />
+                  <Label htmlFor={`${question.id}-false`}>FALSE</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="NOT GIVEN" id={`${question.id}-ng`} />
+                  <Label htmlFor={`${question.id}-ng`}>NOT GIVEN</Label>
+                </div>
+              </RadioGroup>
+            )}
 
-  if (!hasStarted) {
-    return (
-      <>
-        <SEO title={`${test.test_title} - IELTS Reading`} description="IELTS Reading Practice Test" />
-        
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-          <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-            <div className="container mx-auto px-4 py-4">
-              <Link href="/">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Dashboard
-                </Button>
-              </Link>
-            </div>
-          </header>
-
-          <div className="max-w-4xl mx-auto px-4 py-12">
-            <Card className="p-8">
-              <div className="space-y-6">
-                <div>
-                  <h1 className="text-3xl font-bold text-slate-900 mb-2">{test.test_title}</h1>
-                  <div className="flex flex-wrap gap-3">
-                    <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium capitalize">
-                      {test.exam_type}
-                    </span>
-                    <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium capitalize">
-                      {test.difficulty}
-                    </span>
-                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                      {test.questions.length} Questions
-                    </span>
+            {question.type === "multiple-choice" && question.options && (
+              <RadioGroup
+                value={userAnswer || ""}
+                onValueChange={(value) => handleAnswerChange(question.id, value)}
+                disabled={isSubmitted}
+              >
+                {question.options.map((option, idx) => (
+                  <div key={idx} className="flex items-center space-x-2 mb-2">
+                    <RadioGroupItem value={option} id={`${question.id}-${idx}`} />
+                    <Label htmlFor={`${question.id}-${idx}`}>{option}</Label>
                   </div>
-                </div>
+                ))}
+              </RadioGroup>
+            )}
 
-                <div className="p-6 bg-amber-50 border-2 border-amber-200 rounded-lg">
-                  <h3 className="font-bold text-amber-900 mb-3 flex items-center gap-2">
-                    <Clock className="w-5 h-5" />
-                    Test Instructions
-                  </h3>
-                  <ul className="space-y-2 text-sm text-amber-800">
-                    <li>• You have <strong>60 minutes</strong> to complete this test</li>
-                    <li>• There are <strong>{test.passages.length} passages</strong> with <strong>{test.questions.length} questions</strong> in total</li>
-                    <li>• Read each passage carefully before answering the questions</li>
-                    <li>• You can scroll through all passages and questions</li>
-                    <li>• The timer will start when you click "Start Test"</li>
-                    <li>• Your test will auto-submit when time runs out</li>
-                    <li>• Make sure to answer all questions before submitting</li>
-                  </ul>
-                </div>
+            {question.type === "gap-fill" && (
+              <Input
+                type="text"
+                placeholder="Type your answer here"
+                value={userAnswer || ""}
+                onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                disabled={isSubmitted}
+                className="max-w-md"
+              />
+            )}
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {test.passages.map((passage, index) => (
-                    <div key={index} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      <h4 className="font-semibold text-slate-900 mb-2">Passage {index + 1}</h4>
-                      <p className="text-sm text-slate-600">{passage.title}</p>
-                      <p className="text-xs text-slate-500 mt-2">~{passage.wordCount} words</p>
+            {isSubmitted && (
+              <div className={`mt-3 p-2 rounded ${isCorrect ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                {isCorrect ? (
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>Correct!</span>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Incorrect</span>
                     </div>
-                  ))}
-                </div>
-
-                <Button 
-                  onClick={handleStartTest}
-                  size="lg"
-                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-lg py-6"
-                >
-                  <Clock className="w-5 h-5 mr-2" />
-                  Start Test (60 Minutes)
-                </Button>
-              </div>
-            </Card>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <SEO title={`${test.test_title} - In Progress`} description="IELTS Reading Practice Test" />
-      
-      <div className="min-h-screen bg-slate-50">
-        {/* Sticky Timer Header */}
-        <header className="sticky top-0 z-50 bg-white border-b shadow-sm">
-          <div className="container mx-auto px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">{test.test_title}</h2>
-                <p className="text-sm text-slate-600">
-                  {Object.keys(userAnswers).length} / {test.questions.length} answered
-                </p>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                  timeRemaining <= 300 ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
-                }`}>
-                  <Clock className="w-5 h-5" />
-                  <span className="text-xl font-bold font-mono">
-                    {formatTime(timeRemaining)}
-                  </span>
-                </div>
-                
-                {!isSubmitted && (
-                  <Button 
-                    onClick={handleSubmit}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    Submit Test
-                  </Button>
+                    <p className="text-sm">Correct answer: <strong>{question.correctAnswer}</strong></p>
+                  </div>
                 )}
               </div>
-            </div>
+            )}
           </div>
-        </header>
-
-        {/* Results Banner (if submitted) */}
-        {isSubmitted && score !== null && (
-          <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white py-8">
-            <div className="container mx-auto px-4 text-center">
-              <CheckCircle className="w-16 h-16 mx-auto mb-4" />
-              <h2 className="text-3xl font-bold mb-2">Test Completed!</h2>
-              <p className="text-xl mb-4">Your Band Score: <strong>{score.toFixed(1)}</strong></p>
-              <div className="flex justify-center gap-4">
-                <Link href="/history">
-                  <Button variant="secondary">View History</Button>
-                </Link>
-                <Link href="/">
-                  <Button variant="secondary">Back to Dashboard</Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Test Content - Vertical Scroll Layout */}
-        <div className="container mx-auto px-4 py-8 max-w-7xl">
-          {test.passages.map((passage, passageIndex) => {
-            // Get questions for this passage
-            const passageQuestions = test.questions.filter(q => q.passage === passageIndex + 1);
-            const startQuestionNum = passageIndex * 13 + 1;
-
-            return (
-              <div key={passageIndex} className="mb-12">
-                {/* Passage Section */}
-                <Card className="mb-8 overflow-hidden">
-                  <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
-                    <h2 className="text-2xl font-bold">Passage {passageIndex + 1}</h2>
-                    <p className="text-blue-100">{passage.title}</p>
-                  </div>
-                  
-                  <div className="p-8">
-                    <div className="prose prose-slate max-w-none">
-                      {passage.content.split('\n\n').map((paragraph, idx) => (
-                        <p key={idx} className="mb-4 text-slate-700 leading-relaxed">
-                          {paragraph}
-                        </p>
-                      ))}
-                    </div>
-                    
-                    <div className="mt-6 pt-6 border-t border-slate-200 text-sm text-slate-600">
-                      Word count: {passage.wordCount} words
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Questions Section for this Passage */}
-                <Card className="p-8">
-                  <div className="mb-6">
-                    <h3 className="text-xl font-bold text-slate-900 mb-2">
-                      Questions {startQuestionNum} - {startQuestionNum + passageQuestions.length - 1}
-                    </h3>
-                    <p className="text-slate-600">Answer the questions below based on Passage {passageIndex + 1}</p>
-                  </div>
-
-                  <div className="space-y-8">
-                    {passageQuestions.map((question, qIndex) => {
-                      const questionNum = startQuestionNum + qIndex;
-                      const isCorrect = isSubmitted && userAnswers[question.id]?.toLowerCase() === question.correctAnswer.toLowerCase();
-                      const isWrong = isSubmitted && userAnswers[question.id] && userAnswers[question.id]?.toLowerCase() !== question.correctAnswer.toLowerCase();
-
-                      return (
-                        <div 
-                          key={question.id}
-                          className={`p-6 rounded-lg border-2 ${
-                            isCorrect ? "bg-green-50 border-green-300" :
-                            isWrong ? "bg-red-50 border-red-300" :
-                            "bg-white border-slate-200"
-                          }`}
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                              isCorrect ? "bg-green-600 text-white" :
-                              isWrong ? "bg-red-600 text-white" :
-                              "bg-blue-600 text-white"
-                            }`}>
-                              {questionNum}
-                            </div>
-                            
-                            <div className="flex-grow">
-                              <div className="mb-4">
-                                <span className="inline-block px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium mb-3">
-                                  {getQuestionTypeLabel(question.type)}
-                                </span>
-                                <p className="text-slate-900 font-medium">{question.question}</p>
-                              </div>
-
-                              {question.type === "multiple_choice" && question.options ? (
-                                <RadioGroup
-                                  value={userAnswers[question.id] || ""}
-                                  onValueChange={(value) => handleAnswerChange(question.id, value)}
-                                  disabled={isSubmitted}
-                                >
-                                  <div className="space-y-3">
-                                    {question.options.map((option, idx) => (
-                                      <div key={idx} className="flex items-center space-x-3">
-                                        <RadioGroupItem value={option} id={`q${question.id}-${idx}`} />
-                                        <Label 
-                                          htmlFor={`q${question.id}-${idx}`}
-                                          className="cursor-pointer flex-grow"
-                                        >
-                                          {option}
-                                        </Label>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </RadioGroup>
-                              ) : question.type === "true_false_not_given" ? (
-                                <RadioGroup
-                                  value={userAnswers[question.id] || ""}
-                                  onValueChange={(value) => handleAnswerChange(question.id, value)}
-                                  disabled={isSubmitted}
-                                >
-                                  <div className="space-y-3">
-                                    {["TRUE", "FALSE", "NOT GIVEN"].map((option) => (
-                                      <div key={option} className="flex items-center space-x-3">
-                                        <RadioGroupItem value={option} id={`q${question.id}-${option}`} />
-                                        <Label 
-                                          htmlFor={`q${question.id}-${option}`}
-                                          className="cursor-pointer flex-grow"
-                                        >
-                                          {option}
-                                        </Label>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </RadioGroup>
-                              ) : (
-                                <Input
-                                  value={userAnswers[question.id] || ""}
-                                  onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                                  placeholder="Type your answer here..."
-                                  disabled={isSubmitted}
-                                  className="max-w-md"
-                                />
-                              )}
-
-                              {/* Show correct answer after submission */}
-                              {isSubmitted && (
-                                <div className="mt-4 pt-4 border-t border-slate-200">
-                                  <div className="flex items-center gap-2 text-sm">
-                                    {isCorrect ? (
-                                      <>
-                                        <CheckCircle className="w-4 h-4 text-green-600" />
-                                        <span className="font-medium text-green-700">Correct!</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <AlertCircle className="w-4 h-4 text-red-600" />
-                                        <span className="font-medium text-red-700">
-                                          Correct answer: <strong>{question.correctAnswer}</strong>
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Card>
-              </div>
-            );
-          })}
-
-          {/* Submit Button at Bottom */}
-          {!isSubmitted && (
-            <div className="sticky bottom-6 z-40">
-              <Card className="p-4 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600">
-                      Progress: {Object.keys(userAnswers).length} / {test.questions.length} questions answered
-                    </p>
-                  </div>
-                  <Button 
-                    onClick={handleSubmit}
-                    size="lg"
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    Submit Test
-                  </Button>
-                </div>
-              </Card>
-            </div>
-          )}
         </div>
       </div>
-    </>
+    );
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
+        <SEO title="Loading Reading Test - IELTS Practice" />
+        <Card className="w-full max-w-md">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+            <p className="text-lg font-medium">Loading Reading Test...</p>
+            <p className="text-sm text-muted-foreground mt-2">Please wait</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !test) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
+        <SEO title="Error - IELTS Practice" />
+        <Card className="w-full max-w-2xl">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-6 w-6 text-destructive" />
+              <CardTitle>Error Loading Test</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert variant="destructive">
+              <AlertDescription className="text-base">
+                {error || "Test not found or failed to load"}
+              </AlertDescription>
+            </Alert>
+
+            <div className="bg-muted p-4 rounded-lg">
+              <p className="font-medium mb-2">Debug Information:</p>
+              <ul className="text-sm space-y-1 text-muted-foreground">
+                <li>• Test ID: {testId || "Not provided"}</li>
+                <li>• Category: Reading</li>
+                <li>• Error: {error || "Unknown error"}</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-3">
+              <Button onClick={() => router.push("/")}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Home
+              </Button>
+              <Button variant="outline" onClick={() => router.reload()}>
+                Try Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Results view
+  if (isSubmitted) {
+    const percentage = Math.round((score / test.totalQuestions) * 100);
+    const bandScore = percentage >= 90 ? 9 : percentage >= 80 ? 8 : percentage >= 70 ? 7 : percentage >= 60 ? 6 : percentage >= 50 ? 5 : 4;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
+        <SEO title={`Results - ${test.testTitle} - IELTS Practice`} />
+        <div className="max-w-4xl mx-auto">
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-2xl">Test Results</CardTitle>
+              <CardDescription>{test.testTitle}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <p className="text-sm text-muted-foreground mb-2">Score</p>
+                    <p className="text-3xl font-bold text-primary">{score}/{test.totalQuestions}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <p className="text-sm text-muted-foreground mb-2">Percentage</p>
+                    <p className="text-3xl font-bold text-green-600">{percentage}%</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <p className="text-sm text-muted-foreground mb-2">Est. Band Score</p>
+                    <p className="text-3xl font-bold text-blue-600">{bandScore}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="flex gap-3">
+                <Button onClick={() => router.push("/")}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Dashboard
+                </Button>
+                <Button variant="outline" onClick={() => router.reload()}>
+                  Try Another Test
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Show all questions with answers */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Answer Review</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {test.passages.map((passage, idx) => (
+                <div key={passage.id} className="mb-8">
+                  <h3 className="text-xl font-bold mb-4">Passage {idx + 1}: {passage.title}</h3>
+                  {getPassageQuestions(passage).map(renderQuestion)}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Test view - Cambridge 3-passage format
+  const currentPassageData = test.passages[currentPassage];
+  const currentQuestions = currentPassageData ? getPassageQuestions(currentPassageData) : [];
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
+      <SEO title={`${test.testTitle} - IELTS Reading Practice`} />
+      
+      {/* Header with Timer */}
+      <div className="max-w-7xl mx-auto mb-6">
+        <Card>
+          <CardContent className="flex items-center justify-between py-4">
+            <div>
+              <h1 className="text-xl font-bold">{test.testTitle}</h1>
+              <p className="text-sm text-muted-foreground">
+                {test.examType} • {test.difficulty} • {test.totalQuestions} questions
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-primary" />
+                <span className="text-lg font-mono font-bold">
+                  {formatTime(timeRemaining)}
+                </span>
+              </div>
+              <Button onClick={handleSubmit}>Submit Test</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Passage Navigation */}
+      <div className="max-w-7xl mx-auto mb-6">
+        <div className="flex gap-2">
+          {test.passages.map((passage, idx) => (
+            <Button
+              key={passage.id}
+              variant={currentPassage === idx ? "default" : "outline"}
+              onClick={() => setCurrentPassage(idx)}
+            >
+              Passage {idx + 1}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content - Cambridge Format */}
+      <div className="max-w-7xl mx-auto">
+        {currentPassageData ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Passage (Left/Top) */}
+            <Card className="lg:sticky lg:top-4 h-fit">
+              <CardHeader>
+                <CardTitle>Passage {currentPassage + 1}</CardTitle>
+                <CardDescription>{currentPassageData.title}</CardDescription>
+              </CardHeader>
+              <CardContent className="prose prose-sm max-w-none">
+                <div className="whitespace-pre-wrap text-justify leading-relaxed">
+                  {currentPassageData.content}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Questions (Right/Bottom) */}
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  Questions {currentPassageData.questionRange.start}-{currentPassageData.questionRange.end}
+                </CardTitle>
+                <CardDescription>Answer the questions based on Passage {currentPassage + 1}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {currentQuestions.length > 0 ? (
+                  currentQuestions.map(renderQuestion)
+                ) : (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Questions are loading... Please wait or try another passage.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-lg font-medium">Content Loading...</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Passage data is being prepared
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Progress Indicator */}
+      <div className="max-w-7xl mx-auto mt-6">
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">Progress</span>
+              <span className="text-sm font-medium">
+                {Object.keys(userAnswers).length}/{test.totalQuestions} answered
+              </span>
+            </div>
+            <Progress 
+              value={(Object.keys(userAnswers).length / test.totalQuestions) * 100} 
+              className="h-2"
+            />
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
