@@ -32,6 +32,7 @@ import { getStudyStreak, getBandScoreHistory, getRecentPractice } from "@/servic
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { getIELTSPapers } from "@/services/ieltsPapersService";
+import { useToast } from "@/hooks/use-toast";
 
 ChartJS.register(
   CategoryScale,
@@ -69,6 +70,7 @@ type ModuleType = "reading" | "writing" | "listening" | "speaking";
 
 export function Dashboard({ userId }: DashboardProps) {
   const router = useRouter();
+  const { toast } = useToast();
   const [studyStreak, setStudyStreak] = useState<number>(0);
   const [bandScoreData, setBandScoreData] = useState<BandScoreData[]>([]);
   const [recentPractice, setRecentPractice] = useState<RecentPractice[]>([]);
