@@ -131,14 +131,23 @@ export function Dashboard({ userId }: DashboardProps) {
   };
 
   const handleStartPractice = (module: ModuleType) => {
-    if (module === "reading" && selectedReadingTest) {
+    if (module === "reading") {
+      if (!selectedReadingTest) {
+        toast({
+          title: "No Test Selected",
+          description: "Please select a test from the dropdown before starting.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      console.log("Starting reading test with ID:", selectedReadingTest);
+      
       // Navigate to reading with specific test ID
       router.push({
         pathname: "/practice/reading",
         query: { 
-          testId: selectedReadingTest,
-          examType,
-          difficulty
+          testId: selectedReadingTest
         }
       });
     } else {
