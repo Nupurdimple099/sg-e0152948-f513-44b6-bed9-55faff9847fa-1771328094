@@ -107,6 +107,33 @@ export default function ProfilePage() {
       setEmail(user.email || "");
       setFullName(user.user_metadata?.full_name || "");
       
+      // Ensure profile exists - create if missing
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("Error fetching profile:", profileError);
+      }
+
+      // If no profile exists, create one
+      if (!profile) {
+        console.log("Profile not found, creating new profile...");
+        const { error: insertError } = await supabase
+          .from("profiles")
+          .insert({
+            id: user.id,
+            email: user.email,
+            full_name: user.user_metadata?.full_name || ""
+          });
+
+        if (insertError) {
+          console.error("Error creating profile:", insertError);
+        }
+      }
+      
       // Load statistics
       await loadStatistics(user.id);
       

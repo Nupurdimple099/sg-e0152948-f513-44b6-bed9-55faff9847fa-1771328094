@@ -29,12 +29,38 @@ export function UserMenu({ onSignOut }: UserMenuProps) {
       setUser(user);
 
       if (user) {
-        const { data } = await supabase
+        // Use maybeSingle() instead of single() to handle cases where profile doesn't exist
+        const { data, error } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", user.id)
-          .single();
-        setProfile(data);
+          .maybeSingle();
+
+        if (error) {
+          console.error("Error fetching profile:", error);
+        }
+
+        // If no profile exists, create one
+        if (!data && user) {
+          console.log("Profile not found, creating new profile...");
+          const { data: newProfile, error: insertError } = await supabase
+            .from("profiles")
+            .insert({
+              id: user.id,
+              email: user.email,
+              full_name: user.user_metadata?.full_name || ""
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error("Error creating profile:", insertError);
+          } else {
+            setProfile(newProfile);
+          }
+        } else {
+          setProfile(data);
+        }
       }
     };
 
