@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { SEO } from "@/components/SEO";
 import Link from "next/link";
+import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,6 +84,11 @@ export default function ProfilePage() {
   // Delete account state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
+  };
 
   useEffect(() => {
     checkUser();
@@ -252,7 +258,10 @@ export default function ProfilePage() {
                   Profile Management
                 </h1>
               </div>
-              <UserMenu onSignOut={() => router.push('/')} />
+              <div className="flex items-center gap-4">
+                <ThemeSwitch />
+                <UserMenu onSignOut={handleSignOut} />
+              </div>
             </div>
           </div>
         </header>
@@ -384,7 +393,7 @@ export default function ProfilePage() {
 
                 {/* Dashboard Tab */}
                 <TabsContent value="dashboard" className="space-y-4 mt-6">
-                  {user && <Dashboard userId={user.id} />}
+                  {user && <Dashboard />}
                 </TabsContent>
 
                 {/* Profile Tab */}

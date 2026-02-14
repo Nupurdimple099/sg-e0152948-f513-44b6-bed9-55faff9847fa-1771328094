@@ -24,6 +24,7 @@ export type Database = {
           difficulty: string
           exam_type: string
           test_id: string
+          test_title: string | null
           updated_at: string | null
         }
         Insert: {
@@ -34,6 +35,7 @@ export type Database = {
           difficulty: string
           exam_type: string
           test_id?: string
+          test_title?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -44,6 +46,7 @@ export type Database = {
           difficulty?: string
           exam_type?: string
           test_id?: string
+          test_title?: string | null
           updated_at?: string | null
         }
         Relationships: []
