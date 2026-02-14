@@ -129,7 +129,7 @@ export default function ReadingPractice() {
         .select("*")
         .eq("test_id", currentTestId)
         .eq("category", "reading")
-        .single();
+        .maybeSingle();
 
       console.log("6. Supabase query result:", { data, error });
 
@@ -139,13 +139,22 @@ export default function ReadingPractice() {
       }
 
       if (!data) {
-        console.log("8. ERROR: No data returned from query");
-        throw new Error("Test not found in database");
+        console.log("8. ERROR: No data returned - test not found in database");
+        toast({
+          title: "Test Not Found",
+          description: `No reading test found with ID: ${currentTestId}. Please select a different test.`,
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          router.push("/");
+        }, 2000);
+        setIsLoading(false);
+        return;
       }
 
       if (!data.content_json) {
         console.log("9. ERROR: content_json is null/undefined");
-        throw new Error("Test data is incomplete");
+        throw new Error("Test data is incomplete - missing content");
       }
 
       console.log("10. content_json structure:", data.content_json);
@@ -162,12 +171,12 @@ export default function ReadingPractice() {
 
       if (!content.passages || !Array.isArray(content.passages)) {
         console.log("12. ERROR: passages missing or not an array");
-        throw new Error("Test passages are missing");
+        throw new Error("Test passages are missing or invalid");
       }
 
       if (!content.questions || !Array.isArray(content.questions)) {
         console.log("13. ERROR: questions missing or not an array");
-        throw new Error("Test questions are missing");
+        throw new Error("Test questions are missing or invalid");
       }
 
       const testData: ReadingTest = {

@@ -122,18 +122,35 @@ export function Dashboard({ userId }: DashboardProps) {
         });
       } else {
         console.log("5. WARNING: No tests found for filters:", { examType, difficulty });
+        toast({
+          title: "No Tests Available",
+          description: `No reading tests found for ${examType} ${difficulty} level.`,
+          variant: "default",
+        });
       }
       
       setAvailableReadingTests(tests);
-      setSelectedReadingTest("");
       
-      console.log("6. State updated successfully");
+      // Auto-select first test if available
+      if (tests.length > 0) {
+        setSelectedReadingTest(tests[0].test_id);
+        console.log("6. Auto-selected first test:", tests[0].test_id);
+      } else {
+        setSelectedReadingTest("");
+      }
+      
+      console.log("7. State updated successfully");
     } catch (error) {
-      console.error("7. ERROR loading reading tests:", error);
+      console.error("8. ERROR loading reading tests:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load reading tests. Please try again.",
+        variant: "destructive",
+      });
       setAvailableReadingTests([]);
     } finally {
       setIsLoadingTests(false);
-      console.log("8. Loading complete");
+      console.log("9. Loading complete");
     }
   };
 
