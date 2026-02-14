@@ -48,14 +48,14 @@ export default function ReadingPractice() {
   
   // Test state
   const [hasStarted, setHasStarted] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(3600); // 60 minutes in seconds
+  const [timeRemaining, setTimeRemaining] = useState(3600);
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [score, setScore] = useState<number | null>(null);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Check user session
+  // Simplified auth check - no network calls on load
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
@@ -66,9 +66,13 @@ export default function ReadingPractice() {
     };
   }, []);
 
-  // Load test data
+  // Load test data immediately when testId is available
   useEffect(() => {
-    if (!router.isReady || !testId) return;
+    if (!router.isReady) return;
+    if (!testId) {
+      setIsLoading(false);
+      return;
+    }
     loadTest();
   }, [router.isReady, testId]);
 
@@ -98,7 +102,10 @@ export default function ReadingPractice() {
     try {
       const currentTestId = Array.isArray(testId) ? testId[0] : testId;
       
-      if (!currentTestId) return;
+      if (!currentTestId) {
+        setIsLoading(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from("ielts_papers")
@@ -110,7 +117,6 @@ export default function ReadingPractice() {
       if (error) throw error;
 
       if (data && data.content_json) {
-        // Cast content_json to any to access properties safely since Supabase Json type is restrictive
         const content = data.content_json as any;
         
         const testData: ReadingTest = {
