@@ -102,7 +102,7 @@ export function Dashboard({ userId }: DashboardProps) {
         difficulty: difficulty
       });
       setAvailableReadingTests(tests);
-      setSelectedReadingTest(""); // Reset selection
+      setSelectedReadingTest(""); // Reset selection when filters change
     } catch (error) {
       console.error("Error loading reading tests:", error);
       setAvailableReadingTests([]);

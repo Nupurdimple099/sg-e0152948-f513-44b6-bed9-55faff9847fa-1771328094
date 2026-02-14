@@ -96,24 +96,31 @@ export default function ReadingPractice() {
   const loadTest = async () => {
     setIsLoading(true);
     try {
+      const currentTestId = Array.isArray(testId) ? testId[0] : testId;
+      
+      if (!currentTestId) return;
+
       const { data, error } = await supabase
         .from("ielts_papers")
         .select("*")
-        .eq("test_id", testId)
+        .eq("test_id", currentTestId)
         .eq("category", "reading")
         .single();
 
       if (error) throw error;
 
       if (data && data.content_json) {
+        // Cast content_json to any to access properties safely since Supabase Json type is restrictive
+        const content = data.content_json as any;
+        
         const testData: ReadingTest = {
           test_id: data.test_id,
-          test_title: data.content_json.test_title || "IELTS Reading Test",
+          test_title: content.test_title || "IELTS Reading Test",
           exam_type: data.exam_type,
           difficulty: data.difficulty,
-          passages: data.content_json.passages || [],
-          questions: data.content_json.questions || [],
-          timeLimit: data.content_json.timeLimit || 3600
+          passages: content.passages || [],
+          questions: content.questions || [],
+          timeLimit: content.timeLimit || 3600
         };
         
         setTest(testData);
