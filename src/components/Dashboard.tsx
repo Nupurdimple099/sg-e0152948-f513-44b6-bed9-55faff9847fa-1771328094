@@ -102,10 +102,11 @@ export function Dashboard({ userId }: DashboardProps) {
   };
 
   const handleStartPractice = (module: ModuleType) => {
-    // Navigate to the practice page with filters
+    // Navigate to the test session page with filters
     router.push({
-      pathname: `/practice/${module}`,
+      pathname: "/test-session",
       query: {
+        module,
         examType,
         difficulty
       }
@@ -438,7 +439,7 @@ export function Dashboard({ userId }: DashboardProps) {
                   onClick={() => handleStartPractice("reading")}
                 >
                   <Play className="w-4 h-4 mr-2" />
-                  Start Practice
+                  Generate Test
                 </Button>
               </div>
             </CardContent>
@@ -462,7 +463,7 @@ export function Dashboard({ userId }: DashboardProps) {
                   onClick={() => handleStartPractice("writing")}
                 >
                   <Play className="w-4 h-4 mr-2" />
-                  Start Practice
+                  Generate Test
                 </Button>
               </div>
             </CardContent>
@@ -486,7 +487,7 @@ export function Dashboard({ userId }: DashboardProps) {
                   onClick={() => handleStartPractice("listening")}
                 >
                   <Play className="w-4 h-4 mr-2" />
-                  Start Practice
+                  Generate Test
                 </Button>
               </div>
             </CardContent>
@@ -510,7 +511,7 @@ export function Dashboard({ userId }: DashboardProps) {
                   onClick={() => handleStartPractice("speaking")}
                 >
                   <Play className="w-4 h-4 mr-2" />
-                  Start Practice
+                  Generate Test
                 </Button>
               </div>
             </CardContent>

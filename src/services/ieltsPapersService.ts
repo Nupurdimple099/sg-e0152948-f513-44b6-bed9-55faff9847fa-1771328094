@@ -50,7 +50,7 @@ export async function getIELTSPapers(filters?: GetPapersFilters): Promise<IELTSP
       throw error;
     }
 
-    return data || [];
+    return (data as unknown as IELTSPaper[]) || [];
   } catch (error) {
     console.error("Error in getIELTSPapers:", error);
     return [];
@@ -73,7 +73,7 @@ export async function getIELTSPaperById(testId: string): Promise<IELTSPaper | nu
       throw error;
     }
 
-    return data;
+    return data as unknown as IELTSPaper;
   } catch (error) {
     console.error("Error in getIELTSPaperById:", error);
     return null;
@@ -96,7 +96,7 @@ export async function createIELTSPaper(paper: Omit<IELTSPaper, "test_id" | "crea
       throw error;
     }
 
-    return data;
+    return data as unknown as IELTSPaper;
   } catch (error) {
     console.error("Error in createIELTSPaper:", error);
     return null;
@@ -120,7 +120,7 @@ export async function updateIELTSPaper(testId: string, updates: Partial<Omit<IEL
       throw error;
     }
 
-    return data;
+    return data as unknown as IELTSPaper;
   } catch (error) {
     console.error("Error in updateIELTSPaper:", error);
     return null;
