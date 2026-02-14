@@ -9,37 +9,149 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, Clock, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
-import { fetchReadingTest, type ReadingTest, type ReadingPassage, type ReadingQuestion } from "@/services/ieltsPapersService";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
+
+interface ReadingQuestion {
+  id: string;
+  questionNumber: number;
+  type: string;
+  questionText: string;
+  options?: string[];
+  correctAnswer: string;
+  passageId?: string;
+}
+
+interface ReadingPassage {
+  id: string | number;
+  title: string;
+  content: string;
+  questionRange: { start: number; end: number };
+  questions: ReadingQuestion[];
+}
+
+interface ReadingTest {
+  id: string;
+  testTitle: string;
+  examType: string;
+  difficulty: string;
+  passages: ReadingPassage[];
+  timeLimit: number;
+  totalQuestions: number;
+}
 
 export default function ReadingPractice() {
   const router = useRouter();
-  const { testId } = router.query;
-
-  // State management
-  const [test, setTest] = useState<ReadingTest | null>(null);
-  const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
+  const [testData, setTestData] = useState<ReadingTest | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPassageIndex, setCurrentPassageIndex] = useState(0);
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [timeRemaining, setTimeRemaining] = useState(3600);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [score, setScore] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState(3600); // 60 minutes
-  const [currentPassage, setCurrentPassage] = useState(0);
 
-  // Load test on mount
+  // Fetch test data on component mount
   useEffect(() => {
-    if (!testId || typeof testId !== "string") {
-      console.error("Invalid testId:", testId);
-      setError("No test ID provided");
-      setIsLoading(false);
-      return;
-    }
+    const fetchTestData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-    loadTest(testId);
-  }, [testId]);
+        // Extract test ID from URL query parameter
+        const testId = router.query.id as string;
+
+        // Validation: If no ID provided, redirect back to dashboard
+        if (!testId) {
+          console.error("❌ No test ID provided in URL");
+          toast({
+            title: "No test selected",
+            description: "Please select a test first.",
+            variant: "destructive",
+          });
+          router.push("/");
+          return;
+        }
+
+        console.log("🔍 Fetching reading test with ID:", testId);
+
+        // Fetch the test from Supabase using the exact column name 'test_id'
+        const { data: testPaper, error: fetchError } = await supabase
+          .from("ielts_papers")
+          .select("*")
+          .eq("test_id", testId)
+          .eq("category", "reading")
+          .single();
+
+        if (fetchError) {
+          console.error("❌ Supabase fetch error:", fetchError);
+          throw new Error(fetchError.message || "Failed to fetch test data");
+        }
+
+        if (!testPaper) {
+          console.error("❌ No test found with ID:", testId);
+          throw new Error("Test not found");
+        }
+
+        console.log("✅ Test fetched successfully:", testPaper.test_title);
+
+        // Parse the content_json field
+        const contentJson = testPaper.content_json as any;
+
+        // Validate 3-passage structure
+        if (!contentJson.passages || contentJson.passages.length !== 3) {
+          throw new Error("Invalid test structure: Expected 3 passages");
+        }
+
+        if (!contentJson.questions || contentJson.questions.length !== 40) {
+          throw new Error("Invalid test structure: Expected 40 questions");
+        }
+
+        // Transform to ReadingTest format
+        const transformedTest: ReadingTest = {
+          id: testPaper.test_id,
+          testTitle: testPaper.test_title || "IELTS Reading Test",
+          examType: testPaper.exam_type || "Academic",
+          difficulty: testPaper.difficulty || "Medium",
+          passages: contentJson.passages.map((p: any, index: number) => ({
+            id: index + 1,
+            title: p.title || `Passage ${index + 1}`,
+            content: p.content || "",
+            questionRange: p.questionRange || { start: index * 13 + 1, end: (index + 1) * 13 },
+            questions: contentJson.questions.slice(
+              index * 13,
+              index === 2 ? 40 : (index + 1) * 13
+            ),
+          })),
+          timeLimit: contentJson.timeLimit || 3600,
+          totalQuestions: contentJson.totalQuestions || 40,
+        };
+
+        setTestData(transformedTest);
+        setTimeRemaining(transformedTest.timeLimit);
+      } catch (err: any) {
+        console.error("❌ Error loading test:", err);
+        const errorMessage = err.message || "Failed to load test. Please try again.";
+        setError(errorMessage);
+        toast({
+          title: "Error loading test",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Only fetch if router is ready
+    if (router.isReady) {
+      fetchTestData();
+    }
+  }, [router.isReady, router.query.id]);
 
   // Timer countdown
   useEffect(() => {
-    if (isSubmitted || !test) return;
+    if (isSubmitted || !testData) return;
 
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
@@ -53,47 +165,21 @@ export default function ReadingPractice() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [test, isSubmitted]);
-
-  const loadTest = async (id: string) => {
-    console.log("=== LOADING READING TEST ===");
-    setIsLoading(true);
-    setError(null);
-
-    const { data, error: fetchError } = await fetchReadingTest(id);
-
-    if (fetchError) {
-      console.error("Failed to load test:", fetchError);
-      setError(fetchError);
-      setIsLoading(false);
-      return;
-    }
-
-    if (!data) {
-      setError("Test not found");
-      setIsLoading(false);
-      return;
-    }
-
-    console.log("Test loaded successfully:", data);
-    setTest(data);
-    setTimeRemaining(data.timeLimit || 3600);
-    setIsLoading(false);
-  };
+  }, [testData, isSubmitted]);
 
   const handleAnswerChange = (questionId: string, answer: string) => {
-    setUserAnswers((prev) => ({
+    setAnswers((prev) => ({
       ...prev,
       [questionId]: answer
     }));
   };
 
   const handleSubmit = () => {
-    if (!test) return;
+    if (!testData) return;
 
     let correctCount = 0;
-    test.questions.forEach((question) => {
-      const userAnswer = userAnswers[question.id];
+    testData.questions.forEach((question) => {
+      const userAnswer = answers[question.id];
       if (userAnswer && userAnswer.toLowerCase() === question.correctAnswer.toLowerCase()) {
         correctCount++;
       }
@@ -110,15 +196,15 @@ export default function ReadingPractice() {
   };
 
   const getPassageQuestions = (passage: ReadingPassage) => {
-    if (!test) return [];
-    return test.questions.filter(
+    if (!testData) return [];
+    return testData.questions.filter(
       (q) => q.questionNumber >= passage.questionRange.start && 
              q.questionNumber <= passage.questionRange.end
     );
   };
 
   const renderQuestion = (question: ReadingQuestion) => {
-    const userAnswer = userAnswers[question.id];
+    const userAnswer = answers[question.id];
     const isCorrect = userAnswer?.toLowerCase() === question.correctAnswer.toLowerCase();
 
     return (
@@ -202,7 +288,7 @@ export default function ReadingPractice() {
   };
 
   // Loading state
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
         <SEO title="Loading Reading Test - IELTS Practice" />
@@ -218,7 +304,7 @@ export default function ReadingPractice() {
   }
 
   // Error state
-  if (error || !test) {
+  if (error || !testData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
         <SEO title="Error - IELTS Practice" />
@@ -239,7 +325,7 @@ export default function ReadingPractice() {
             <div className="bg-muted p-4 rounded-lg">
               <p className="font-medium mb-2">Debug Information:</p>
               <ul className="text-sm space-y-1 text-muted-foreground">
-                <li>• Test ID: {testId || "Not provided"}</li>
+                <li>• Test ID: {router.query.id || "Not provided"}</li>
                 <li>• Category: Reading</li>
                 <li>• Error: {error || "Unknown error"}</li>
               </ul>
@@ -262,24 +348,24 @@ export default function ReadingPractice() {
 
   // Results view
   if (isSubmitted) {
-    const percentage = Math.round((score / test.totalQuestions) * 100);
+    const percentage = Math.round((score / testData.totalQuestions) * 100);
     const bandScore = percentage >= 90 ? 9 : percentage >= 80 ? 8 : percentage >= 70 ? 7 : percentage >= 60 ? 6 : percentage >= 50 ? 5 : 4;
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
-        <SEO title={`Results - ${test.testTitle} - IELTS Practice`} />
+        <SEO title={`Results - ${testData.testTitle} - IELTS Practice`} />
         <div className="max-w-4xl mx-auto">
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="text-2xl">Test Results</CardTitle>
-              <CardDescription>{test.testTitle}</CardDescription>
+              <CardDescription>{testData.testTitle}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
                   <CardContent className="pt-6 text-center">
                     <p className="text-sm text-muted-foreground mb-2">Score</p>
-                    <p className="text-3xl font-bold text-primary">{score}/{test.totalQuestions}</p>
+                    <p className="text-3xl font-bold text-primary">{score}/{testData.totalQuestions}</p>
                   </CardContent>
                 </Card>
                 <Card>
@@ -314,7 +400,7 @@ export default function ReadingPractice() {
               <CardTitle>Answer Review</CardTitle>
             </CardHeader>
             <CardContent>
-              {test.passages.map((passage, idx) => (
+              {testData.passages.map((passage, idx) => (
                 <div key={passage.id} className="mb-8">
                   <h3 className="text-xl font-bold mb-4">Passage {idx + 1}: {passage.title}</h3>
                   {getPassageQuestions(passage).map(renderQuestion)}
@@ -328,21 +414,21 @@ export default function ReadingPractice() {
   }
 
   // Test view - Cambridge 3-passage format
-  const currentPassageData = test.passages[currentPassage];
+  const currentPassageData = testData.passages[currentPassageIndex];
   const currentQuestions = currentPassageData ? getPassageQuestions(currentPassageData) : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
-      <SEO title={`${test.testTitle} - IELTS Reading Practice`} />
+      <SEO title={`${testData.testTitle} - IELTS Reading Practice`} />
       
       {/* Header with Timer */}
       <div className="max-w-7xl mx-auto mb-6">
         <Card>
           <CardContent className="flex items-center justify-between py-4">
             <div>
-              <h1 className="text-xl font-bold">{test.testTitle}</h1>
+              <h1 className="text-xl font-bold">{testData.testTitle}</h1>
               <p className="text-sm text-muted-foreground">
-                {test.examType} • {test.difficulty} • {test.totalQuestions} questions
+                {testData.examType} • {testData.difficulty} • {testData.totalQuestions} questions
               </p>
             </div>
             <div className="flex items-center gap-4">
@@ -361,11 +447,11 @@ export default function ReadingPractice() {
       {/* Passage Navigation */}
       <div className="max-w-7xl mx-auto mb-6">
         <div className="flex gap-2">
-          {test.passages.map((passage, idx) => (
+          {testData.passages.map((passage, idx) => (
             <Button
               key={passage.id}
-              variant={currentPassage === idx ? "default" : "outline"}
-              onClick={() => setCurrentPassage(idx)}
+              variant={currentPassageIndex === idx ? "default" : "outline"}
+              onClick={() => setCurrentPassageIndex(idx)}
             >
               Passage {idx + 1}
             </Button>
@@ -380,7 +466,7 @@ export default function ReadingPractice() {
             {/* Passage (Left/Top) */}
             <Card className="lg:sticky lg:top-4 h-fit">
               <CardHeader>
-                <CardTitle>Passage {currentPassage + 1}</CardTitle>
+                <CardTitle>Passage {currentPassageIndex + 1}</CardTitle>
                 <CardDescription>{currentPassageData.title}</CardDescription>
               </CardHeader>
               <CardContent className="prose prose-sm max-w-none">
@@ -396,7 +482,7 @@ export default function ReadingPractice() {
                 <CardTitle>
                   Questions {currentPassageData.questionRange.start}-{currentPassageData.questionRange.end}
                 </CardTitle>
-                <CardDescription>Answer the questions based on Passage {currentPassage + 1}</CardDescription>
+                <CardDescription>Answer the questions based on Passage {currentPassageIndex + 1}</CardDescription>
               </CardHeader>
               <CardContent>
                 {currentQuestions.length > 0 ? (
@@ -434,11 +520,11 @@ export default function ReadingPractice() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-muted-foreground">Progress</span>
               <span className="text-sm font-medium">
-                {Object.keys(userAnswers).length}/{test.totalQuestions} answered
+                {Object.keys(answers).length}/{testData.totalQuestions} answered
               </span>
             </div>
             <Progress 
-              value={(Object.keys(userAnswers).length / test.totalQuestions) * 100} 
+              value={(Object.keys(answers).length / testData.totalQuestions) * 100} 
               className="h-2"
             />
           </CardContent>

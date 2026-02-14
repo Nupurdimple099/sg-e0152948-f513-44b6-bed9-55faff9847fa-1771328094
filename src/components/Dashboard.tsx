@@ -174,37 +174,28 @@ export function Dashboard() {
   };
 
   const handleStartPractice = () => {
-    console.log("=== START PRACTICE DEBUG ===");
-    console.log("1. Selected module:", selectedModule);
-    console.log("2. Selected test ID:", selectedTestId);
-    
-    if (!selectedModule) {
-      toast({
-        title: "Select a module",
-        description: "Please choose a practice module to start",
-        variant: "destructive"
-      });
-      return;
-    }
-
     if (!selectedTestId) {
       toast({
-        title: "Select a test",
-        description: "Please choose a test from the dropdown",
-        variant: "destructive"
+        title: "No test selected",
+        description: "Please select a test before starting practice",
+        variant: "destructive",
       });
       return;
     }
 
-    // Navigate with testId in query parameter
-    const route = moduleConfig[selectedModule].route;
-    console.log("3. Navigating to:", route);
-    console.log("4. With testId:", selectedTestId);
-    
-    router.push({
-      pathname: route,
-      query: { testId: selectedTestId }
-    });
+    // Navigate to the appropriate practice page with test ID as query parameter
+    const practiceRoutes = {
+      reading: "/practice/reading",
+      writing: "/practice/writing",
+      listening: "/practice/listening",
+      speaking: "/practice/speaking",
+    };
+
+    const route = practiceRoutes[selectedModule];
+    if (route) {
+      // Pass the test ID as a query parameter
+      router.push(`${route}?id=${selectedTestId}`);
+    }
   };
 
   const formatDate = (dateString: string | null) => {
