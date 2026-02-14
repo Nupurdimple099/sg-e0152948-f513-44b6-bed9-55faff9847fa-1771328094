@@ -365,6 +365,24 @@ export function Dashboard() {
           <p className="text-slate-600 dark:text-slate-400">
             Choose a module to begin your practice session
           </p>
+          {isAdmin && (
+            <div className="flex justify-center gap-4 mt-4">
+              <Button
+                onClick={() => router.push("/test-management")}
+                variant="outline"
+                size="lg"
+              >
+                Manage Tests
+              </Button>
+              <Button
+                onClick={() => router.push("/history")}
+                variant="outline"
+                size="lg"
+              >
+                Practice History
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Admin Tools Section */}
