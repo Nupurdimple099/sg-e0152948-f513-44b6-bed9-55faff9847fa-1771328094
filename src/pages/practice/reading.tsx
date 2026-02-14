@@ -37,6 +37,14 @@ interface ReadingTest {
   timeLimit: number;
 }
 
+// Add interface for the raw JSON content from database
+interface TestContent {
+  test_title?: string;
+  passages?: Passage[];
+  questions?: Question[];
+  timeLimit?: number;
+}
+
 export default function ReadingPractice() {
   const router = useRouter();
   const { testId } = router.query;
@@ -44,6 +52,7 @@ export default function ReadingPractice() {
   
   const [test, setTest] = useState<ReadingTest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   
   // Test state
@@ -68,14 +77,28 @@ export default function ReadingPractice() {
 
   // Load test data immediately when testId is available
   useEffect(() => {
-    if (!router.isReady) return;
+    console.log("=== READING PRACTICE useEffect ===");
+    console.log("1. router.isReady:", router.isReady);
+    console.log("2. router.query:", router.query);
+    
+    if (!router.isReady) {
+      console.log("3. Router not ready, waiting...");
+      return;
+    }
+
+    const testId = router.query.testId as string;
+    console.log("4. Extracted testId:", testId);
+
     if (!testId) {
-      console.log("No testId provided");
+      console.log("5. No testId in query, showing error");
+      setError("No test ID provided. Please select a test from the dashboard.");
       setIsLoading(false);
       return;
     }
-    loadTest();
-  }, [router.isReady, testId]);
+
+    console.log("6. Loading test with testId:", testId);
+    loadTest(testId);
+  }, [router.isReady, router.query.testId]);
 
   // Timer countdown
   useEffect(() => {
@@ -98,121 +121,89 @@ export default function ReadingPractice() {
     };
   }, [hasStarted, isSubmitted, timeRemaining]);
 
-  const loadTest = async () => {
-    console.log("=== LOAD TEST DEBUG ===");
-    console.log("1. router.query:", router.query);
-    console.log("2. testId value:", testId);
+  const loadTest = async (testId: string) => {
+    console.log("=== LOAD TEST START ===");
+    console.log("1. testId:", testId);
     
     setIsLoading(true);
+    setError(null);
+
     try {
-      // Handle testId being array or undefined
-      const currentTestId = Array.isArray(testId) ? testId[0] : testId;
+      console.log("2. Calling getIELTSPapers...");
       
-      console.log("3. currentTestId after processing:", currentTestId);
-      
-      if (!currentTestId) {
-        console.log("4. ERROR: No currentTestId found");
-        toast({
-          title: "Error",
-          description: "No test ID provided. Please select a test from the dashboard.",
-          variant: "destructive",
-        });
-        router.push("/");
-        setIsLoading(false);
-        return;
-      }
+      // Query by test_id directly
+      const { data, error: queryError } = await supabase
+        .from('ielts_papers')
+        .select('*')
+        .eq('test_id', testId)
+        .single();
 
-      console.log("5. Querying Supabase with test_id:", currentTestId);
+      console.log("3. Query result:", { data, error: queryError });
 
-      const { data, error } = await supabase
-        .from("ielts_papers")
-        .select("*")
-        .eq("test_id", currentTestId)
-        .eq("category", "reading")
-        .maybeSingle();
-
-      console.log("6. Supabase query result:", { data, error });
-
-      if (error) {
-        console.error("7. Supabase error details:", error);
-        throw error;
+      if (queryError) {
+        console.error("4. Query error:", queryError);
+        throw new Error(`Database error: ${queryError.message}`);
       }
 
       if (!data) {
-        console.log("8. ERROR: No data returned - test not found in database");
-        toast({
-          title: "Test Not Found",
-          description: `No reading test found with ID: ${currentTestId}. Please select a different test.`,
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          router.push("/");
-        }, 2000);
-        setIsLoading(false);
-        return;
+        console.log("5. No data returned");
+        throw new Error("Test not found in database");
       }
+
+      console.log("6. Test data received:", {
+        test_id: data.test_id,
+        exam_type: data.exam_type,
+        difficulty: data.difficulty,
+        has_content_json: !!data.content_json
+      });
 
       if (!data.content_json) {
-        console.log("9. ERROR: content_json is null/undefined");
-        throw new Error("Test data is incomplete - missing content");
+        console.log("7. No content_json found");
+        throw new Error("Test content is missing");
       }
 
-      console.log("10. content_json structure:", data.content_json);
-
-      // Type assertion for content_json
-      const content = data.content_json as any;
+      console.log("8. Parsing content_json...");
+      // Cast the JSON content to our interface
+      const content = data.content_json as unknown as TestContent;
       
-      console.log("11. Parsed content:", {
-        test_title: content.test_title,
-        passages_count: content.passages?.length,
-        questions_count: content.questions?.length,
-        timeLimit: content.timeLimit
+      console.log("9. Content structure:", {
+        has_test_title: !!content.test_title,
+        has_passages: !!content.passages,
+        passages_length: content.passages?.length,
+        has_questions: !!content.questions,
+        questions_length: content.questions?.length
       });
 
       if (!content.passages || !Array.isArray(content.passages)) {
-        console.log("12. ERROR: passages missing or not an array");
+        console.log("10. Invalid passages structure");
         throw new Error("Test passages are missing or invalid");
       }
 
       if (!content.questions || !Array.isArray(content.questions)) {
-        console.log("13. ERROR: questions missing or not an array");
+        console.log("11. Invalid questions structure");
         throw new Error("Test questions are missing or invalid");
       }
 
-      const testData: ReadingTest = {
+      console.log("12. Setting test state...");
+      setTest({
         test_id: data.test_id,
-        test_title: content.test_title || "IELTS Reading Test",
+        test_title: content.test_title || `Reading Test`,
         exam_type: data.exam_type,
         difficulty: data.difficulty,
-        passages: content.passages || [],
-        questions: content.questions || [],
+        passages: content.passages,
+        questions: content.questions,
         timeLimit: content.timeLimit || 3600
-      };
-      
-      console.log("14. Final testData:", testData);
-      console.log("15. Setting test state...");
-      
-      setTest(testData);
-      setTimeRemaining(testData.timeLimit);
-      
-      console.log("16. Test loaded successfully!");
-    } catch (error: any) {
-      console.error("17. ERROR in loadTest:", error);
-      console.error("18. Error message:", error.message);
-      console.error("19. Error details:", error);
-      
-      toast({
-        title: "Error Loading Test",
-        description: error.message || "Failed to load test. Please try again.",
-        variant: "destructive",
       });
-      
-      // Don't redirect immediately - let user see the error
-      setTimeout(() => {
-        router.push("/");
-      }, 3000);
+
+      console.log("13. Test loaded successfully!");
+
+    } catch (err) {
+      console.error("14. Error loading test:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to load test";
+      setError(errorMessage);
+      console.error("15. Error details:", err);
     } finally {
-      console.log("20. Setting isLoading to false");
+      console.log("16. Setting isLoading to false");
       setIsLoading(false);
     }
   };
@@ -350,6 +341,24 @@ export default function ReadingPractice() {
           <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto" />
           <p className="text-lg text-slate-600">Loading your test...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <SEO title="Error - IELTS Reading" description="Error loading test" />
+        <Card className="p-8 max-w-md">
+          <div className="text-center space-y-4">
+            <AlertCircle className="w-16 h-16 text-red-500 mx-auto" />
+            <h2 className="text-2xl font-bold text-gray-900">Error Loading Test</h2>
+            <p className="text-gray-600">{error}</p>
+            <Link href="/">
+              <Button>Return to Dashboard</Button>
+            </Link>
+          </div>
+        </Card>
       </div>
     );
   }
