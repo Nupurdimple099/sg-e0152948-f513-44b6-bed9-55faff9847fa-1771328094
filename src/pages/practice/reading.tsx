@@ -70,6 +70,7 @@ export default function ReadingPractice() {
   useEffect(() => {
     if (!router.isReady) return;
     if (!testId) {
+      console.log("No testId provided");
       setIsLoading(false);
       return;
     }
@@ -98,14 +99,18 @@ export default function ReadingPractice() {
   }, [hasStarted, isSubmitted, timeRemaining]);
 
   const loadTest = async () => {
+    console.log("loadTest called, testId:", testId);
     setIsLoading(true);
     try {
       const currentTestId = Array.isArray(testId) ? testId[0] : testId;
       
       if (!currentTestId) {
+        console.log("No currentTestId after array check");
         setIsLoading(false);
         return;
       }
+
+      console.log("Fetching test with ID:", currentTestId);
 
       const { data, error } = await supabase
         .from("ielts_papers")
@@ -114,9 +119,15 @@ export default function ReadingPractice() {
         .eq("category", "reading")
         .single();
 
-      if (error) throw error;
+      console.log("Supabase query result:", { data, error });
+
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
 
       if (data && data.content_json) {
+        console.log("Test data found:", data);
         const content = data.content_json as any;
         
         const testData: ReadingTest = {
@@ -129,16 +140,18 @@ export default function ReadingPractice() {
           timeLimit: content.timeLimit || 3600
         };
         
+        console.log("Parsed test data:", testData);
         setTest(testData);
         setTimeRemaining(testData.timeLimit);
       } else {
+        console.error("No content_json in data:", data);
         throw new Error("Test data not found");
       }
     } catch (error: any) {
       console.error("Error loading test:", error);
       toast({
         title: "Error",
-        description: "Failed to load test. Please try again.",
+        description: error.message || "Failed to load test. Please try again.",
         variant: "destructive",
       });
       router.push("/");
