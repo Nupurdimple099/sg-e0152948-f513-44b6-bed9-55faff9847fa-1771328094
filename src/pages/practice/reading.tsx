@@ -36,6 +36,7 @@ interface ReadingTest {
   examType: string;
   difficulty: string;
   passages: ReadingPassage[];
+  questions: ReadingQuestion[]; // Added flattened questions array
   timeLimit: number;
   totalQuestions: number;
 }
@@ -123,6 +124,7 @@ export default function ReadingPractice() {
               index === 2 ? 40 : (index + 1) * 13
             ),
           })),
+          questions: contentJson.questions, // Populate the flattened questions array
           timeLimit: contentJson.timeLimit || 3600,
           totalQuestions: contentJson.totalQuestions || 40,
         };
