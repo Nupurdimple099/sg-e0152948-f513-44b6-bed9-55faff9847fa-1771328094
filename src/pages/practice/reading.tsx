@@ -21,11 +21,21 @@ export default function ReadingPractice() {
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  // Check user session
+  // Check user session - but don't block if not logged in
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) {
+          console.log("User not logged in (optional):", error.message);
+          setUser(null);
+        } else {
+          setUser(user);
+        }
+      } catch (error) {
+        console.log("Auth check failed (optional):", error);
+        setUser(null);
+      }
     };
     checkUser();
 
@@ -52,12 +62,16 @@ export default function ReadingPractice() {
   const handleGenerate = () => {
     setIsGenerating(true);
     
+    // Generate the test content
+    const testContent = generateReadingTest(testType, difficulty, topic);
+    setGeneratedTest(testContent);
+    
     setTimeout(() => {
       setIsGenerating(false);
       
-      const testData = { content: generatedTest };
+      const testData = { content: testContent };
 
-      // Save to history
+      // Save to history only if user is logged in
       if (user) {
         // Save to Supabase for logged-in users
         savePracticeAttempt({
@@ -65,19 +79,25 @@ export default function ReadingPractice() {
           topic: topic,
           difficulty: difficulty,
           test_data: testData
-        }).catch(error => console.error("Error saving to Supabase:", error));
-      } else {
-        // Fallback to localStorage for non-logged-in users
-        const history = JSON.parse(localStorage.getItem("ielts_practice_history") || "[]");
-        history.unshift({
-          id: Date.now().toString(),
-          module_type: "reading",
-          topic: topic,
-          difficulty: difficulty,
-          test_data: testData,
-          completed_at: new Date().toISOString(),
+        }).catch(error => {
+          console.log("Could not save to history (user may not be logged in):", error);
         });
-        localStorage.setItem("ielts_practice_history", JSON.stringify(history));
+      } else {
+        // Fallback to localStorage for non-logged-in users (optional)
+        try {
+          const history = JSON.parse(localStorage.getItem("ielts_practice_history") || "[]");
+          history.unshift({
+            id: Date.now().toString(),
+            module_type: "reading",
+            topic: topic,
+            difficulty: difficulty,
+            test_data: testData,
+            completed_at: new Date().toISOString(),
+          });
+          localStorage.setItem("ielts_practice_history", JSON.stringify(history));
+        } catch (error) {
+          console.log("Could not save to localStorage:", error);
+        }
       }
     }, 1500);
   };
