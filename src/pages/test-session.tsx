@@ -56,12 +56,23 @@ export default function TestSession() {
         
         toast({
           title: "Test Loaded Successfully",
-          description: `${difficulty.toString().charAt(0).toUpperCase() + difficulty.toString().slice(1)} ${examType} ${module} test is ready!`,
+          description: `${difficulty.toString().charAt(0).toUpperCase() + difficulty.toString().slice(1)} ${examType.toString().charAt(0).toUpperCase() + examType.toString().slice(1)} ${module.toString().charAt(0).toUpperCase() + module.toString().slice(1)} test is ready!`,
           duration: 3000,
         });
       } else {
         // No matching tests found in database
-        setError(`No ${difficulty} ${examType} ${module} tests available yet. Please try a different configuration or check back later.`);
+        const formattedModule = module.toString().charAt(0).toUpperCase() + module.toString().slice(1);
+        const formattedExamType = examType.toString().charAt(0).toUpperCase() + examType.toString().slice(1);
+        const formattedDifficulty = difficulty.toString().charAt(0).toUpperCase() + difficulty.toString().slice(1);
+        
+        setError(`No ${formattedDifficulty} ${formattedExamType} ${formattedModule} tests available yet. Please try a different configuration or check back later.`);
+        
+        toast({
+          title: "No Tests Available",
+          description: "Preparing more tests for this category. Please try a different difficulty or exam type.",
+          variant: "destructive",
+          duration: 5000,
+        });
         
         console.log("💡 Suggestion: You can generate tests by calling the AI API endpoints");
       }
