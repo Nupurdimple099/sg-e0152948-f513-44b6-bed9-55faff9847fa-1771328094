@@ -8,7 +8,7 @@ export interface LocalTestData {
   category: "reading" | "writing" | "listening" | "speaking";
   exam_type: "academic" | "general";
   difficulty: "easy" | "medium" | "hard";
-  content_json: Record<string, unknown>;
+  content_json: Record<string, any>;
   audio_url?: string;
   image_url?: string;
   prompt_text?: string;
