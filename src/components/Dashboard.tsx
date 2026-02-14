@@ -96,20 +96,44 @@ export function Dashboard({ userId }: DashboardProps) {
   }, [examType, difficulty]);
 
   const loadReadingTests = async () => {
+    console.log("=== LOAD READING TESTS DEBUG ===");
+    console.log("1. Filters:", { examType, difficulty });
+    
     setIsLoadingTests(true);
     try {
+      console.log("2. Calling getIELTSPapers...");
+      
       const tests = await getIELTSPapers({
         category: "reading",
         exam_type: examType,
         difficulty: difficulty
       });
+      
+      console.log("3. Tests returned:", tests);
+      console.log("4. Number of tests:", tests.length);
+      
+      if (tests.length > 0) {
+        console.log("5. First test structure:", {
+          test_id: tests[0].test_id,
+          exam_type: tests[0].exam_type,
+          difficulty: tests[0].difficulty,
+          has_content_json: !!tests[0].content_json,
+          test_title: tests[0].content_json?.test_title
+        });
+      } else {
+        console.log("5. WARNING: No tests found for filters:", { examType, difficulty });
+      }
+      
       setAvailableReadingTests(tests);
       setSelectedReadingTest("");
+      
+      console.log("6. State updated successfully");
     } catch (error) {
-      console.error("Error loading reading tests:", error);
+      console.error("7. ERROR loading reading tests:", error);
       setAvailableReadingTests([]);
     } finally {
       setIsLoadingTests(false);
+      console.log("8. Loading complete");
     }
   };
 
@@ -133,8 +157,14 @@ export function Dashboard({ userId }: DashboardProps) {
   };
 
   const handleStartPractice = (module: ModuleType) => {
+    console.log("=== START PRACTICE DEBUG ===");
+    console.log("1. Module:", module);
+    console.log("2. selectedReadingTest:", selectedReadingTest);
+    console.log("3. availableReadingTests:", availableReadingTests);
+    
     if (module === "reading") {
       if (!selectedReadingTest) {
+        console.log("4. ERROR: No test selected");
         toast({
           title: "No Test Selected",
           description: "Please select a test from the dropdown before starting.",
@@ -143,7 +173,7 @@ export function Dashboard({ userId }: DashboardProps) {
         return;
       }
       
-      console.log("Starting reading test with ID:", selectedReadingTest);
+      console.log("5. Navigating to reading practice with testId:", selectedReadingTest);
       
       // Navigate to reading with specific test ID
       router.push({
@@ -152,7 +182,10 @@ export function Dashboard({ userId }: DashboardProps) {
           testId: selectedReadingTest
         }
       });
+      
+      console.log("6. Navigation initiated");
     } else {
+      console.log("7. Navigating to test session for module:", module);
       // Navigate to test session for other modules
       router.push({
         pathname: "/test-session",

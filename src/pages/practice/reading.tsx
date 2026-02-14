@@ -99,18 +99,30 @@ export default function ReadingPractice() {
   }, [hasStarted, isSubmitted, timeRemaining]);
 
   const loadTest = async () => {
-    console.log("loadTest called, testId:", testId);
+    console.log("=== LOAD TEST DEBUG ===");
+    console.log("1. router.query:", router.query);
+    console.log("2. testId value:", testId);
+    
     setIsLoading(true);
     try {
+      // Handle testId being array or undefined
       const currentTestId = Array.isArray(testId) ? testId[0] : testId;
       
+      console.log("3. currentTestId after processing:", currentTestId);
+      
       if (!currentTestId) {
-        console.log("No currentTestId after array check");
+        console.log("4. ERROR: No currentTestId found");
+        toast({
+          title: "Error",
+          description: "No test ID provided. Please select a test from the dashboard.",
+          variant: "destructive",
+        });
+        router.push("/");
         setIsLoading(false);
         return;
       }
 
-      console.log("Fetching test with ID:", currentTestId);
+      console.log("5. Querying Supabase with test_id:", currentTestId);
 
       const { data, error } = await supabase
         .from("ielts_papers")
@@ -119,43 +131,79 @@ export default function ReadingPractice() {
         .eq("category", "reading")
         .single();
 
-      console.log("Supabase query result:", { data, error });
+      console.log("6. Supabase query result:", { data, error });
 
       if (error) {
-        console.error("Supabase error:", error);
+        console.error("7. Supabase error details:", error);
         throw error;
       }
 
-      if (data && data.content_json) {
-        console.log("Test data found:", data);
-        const content = data.content_json as any;
-        
-        const testData: ReadingTest = {
-          test_id: data.test_id,
-          test_title: content.test_title || "IELTS Reading Test",
-          exam_type: data.exam_type,
-          difficulty: data.difficulty,
-          passages: content.passages || [],
-          questions: content.questions || [],
-          timeLimit: content.timeLimit || 3600
-        };
-        
-        console.log("Parsed test data:", testData);
-        setTest(testData);
-        setTimeRemaining(testData.timeLimit);
-      } else {
-        console.error("No content_json in data:", data);
-        throw new Error("Test data not found");
+      if (!data) {
+        console.log("8. ERROR: No data returned from query");
+        throw new Error("Test not found in database");
       }
+
+      if (!data.content_json) {
+        console.log("9. ERROR: content_json is null/undefined");
+        throw new Error("Test data is incomplete");
+      }
+
+      console.log("10. content_json structure:", data.content_json);
+
+      // Type assertion for content_json
+      const content = data.content_json as any;
+      
+      console.log("11. Parsed content:", {
+        test_title: content.test_title,
+        passages_count: content.passages?.length,
+        questions_count: content.questions?.length,
+        timeLimit: content.timeLimit
+      });
+
+      if (!content.passages || !Array.isArray(content.passages)) {
+        console.log("12. ERROR: passages missing or not an array");
+        throw new Error("Test passages are missing");
+      }
+
+      if (!content.questions || !Array.isArray(content.questions)) {
+        console.log("13. ERROR: questions missing or not an array");
+        throw new Error("Test questions are missing");
+      }
+
+      const testData: ReadingTest = {
+        test_id: data.test_id,
+        test_title: content.test_title || "IELTS Reading Test",
+        exam_type: data.exam_type,
+        difficulty: data.difficulty,
+        passages: content.passages || [],
+        questions: content.questions || [],
+        timeLimit: content.timeLimit || 3600
+      };
+      
+      console.log("14. Final testData:", testData);
+      console.log("15. Setting test state...");
+      
+      setTest(testData);
+      setTimeRemaining(testData.timeLimit);
+      
+      console.log("16. Test loaded successfully!");
     } catch (error: any) {
-      console.error("Error loading test:", error);
+      console.error("17. ERROR in loadTest:", error);
+      console.error("18. Error message:", error.message);
+      console.error("19. Error details:", error);
+      
       toast({
-        title: "Error",
+        title: "Error Loading Test",
         description: error.message || "Failed to load test. Please try again.",
         variant: "destructive",
       });
-      router.push("/");
+      
+      // Don't redirect immediately - let user see the error
+      setTimeout(() => {
+        router.push("/");
+      }, 3000);
     } finally {
+      console.log("20. Setting isLoading to false");
       setIsLoading(false);
     }
   };
